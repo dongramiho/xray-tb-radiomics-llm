@@ -106,7 +106,9 @@ scripts/download_models.sh          # → model/outputs/checkpoints/best_model.h
 ```bash
 cd WebBack
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt     # FastAPI + cxr_tb[inference] (TensorFlow 2.15, PyRadiomics)
+pip install "numpy<2" versioneer                            # PyRadiomics 소스 빌드 의존성 (먼저 설치)
+pip install --no-build-isolation -e "../model[inference]"   # cxr_tb: TensorFlow 2.15, PyRadiomics, SimpleITK
+pip install -r requirements.txt                             # FastAPI 등
 cp .env.example .env                # OPENAI_API_KEY 입력
 uvicorn main:app --reload --port 8000
 ```

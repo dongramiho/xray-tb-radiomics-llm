@@ -1,0 +1,583 @@
+{
+ "report_model": "gpt-4.1",
+ "summary_model": "gpt-4.1-mini",
+ "llm_backend": "fake",
+ "cases": 17,
+ "pass_rate": 1.0,
+ "check_pass_rates": {
+  "evidence": 1.0,
+  "grounded_zones": 1.0,
+  "no_lesion_handled": 1.0,
+  "recommendations": 1.0,
+  "risk_consistent": 1.0,
+  "schema": 1.0,
+  "summary_guardrails": 1.0,
+  "summary_korean": 1.0,
+  "summary_physician": 1.0
+ },
+ "latency_s_median": 0.0,
+ "rows": [
+  {
+   "image_id": "CHNCXR_0001_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3021,
+     400
+    ],
+    "summary": [
+     337,
+     55
+    ]
+   },
+   "cost_usd": 0.009465,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0002_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3038,
+     400
+    ],
+    "summary": [
+     337,
+     55
+    ]
+   },
+   "cost_usd": 0.009499,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0003_0",
+   "label": 0,
+   "primary_label": "no_lesion_detected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "no_lesion_handled": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     1074,
+     400
+    ],
+    "summary": [
+     314,
+     55
+    ]
+   },
+   "cost_usd": 0.005562,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0010_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     2965,
+     400
+    ],
+    "summary": [
+     331,
+     55
+    ]
+   },
+   "cost_usd": 0.00935,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0050_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3036,
+     400
+    ],
+    "summary": [
+     337,
+     55
+    ]
+   },
+   "cost_usd": 0.009495,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0100_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3055,
+     400
+    ],
+    "summary": [
+     337,
+     55
+    ]
+   },
+   "cost_usd": 0.009533,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0200_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     2964,
+     400
+    ],
+    "summary": [
+     331,
+     55
+    ]
+   },
+   "cost_usd": 0.009348,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0300_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3054,
+     400
+    ],
+    "summary": [
+     337,
+     55
+    ]
+   },
+   "cost_usd": 0.009531,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0326_0",
+   "label": 0,
+   "primary_label": "low_tb_likelihood",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3052,
+     400
+    ],
+    "summary": [
+     337,
+     55
+    ]
+   },
+   "cost_usd": 0.009527,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "low"
+  },
+  {
+   "image_id": "CHNCXR_0329_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3052,
+     400
+    ],
+    "summary": [
+     335,
+     55
+    ]
+   },
+   "cost_usd": 0.009526,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "high"
+  },
+  {
+   "image_id": "CHNCXR_0345_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3238,
+     400
+    ],
+    "summary": [
+     348,
+     55
+    ]
+   },
+   "cost_usd": 0.009903,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "high"
+  },
+  {
+   "image_id": "CHNCXR_0400_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3052,
+     400
+    ],
+    "summary": [
+     336,
+     57
+    ]
+   },
+   "cost_usd": 0.00953,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "moderate"
+  },
+  {
+   "image_id": "CHNCXR_0450_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3322,
+     400
+    ],
+    "summary": [
+     348,
+     55
+    ]
+   },
+   "cost_usd": 0.010071,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "high"
+  },
+  {
+   "image_id": "CHNCXR_0500_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3134,
+     400
+    ],
+    "summary": [
+     334,
+     55
+    ]
+   },
+   "cost_usd": 0.00969,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "high"
+  },
+  {
+   "image_id": "CHNCXR_0550_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3321,
+     400
+    ],
+    "summary": [
+     347,
+     55
+    ]
+   },
+   "cost_usd": 0.010069,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "high"
+  },
+  {
+   "image_id": "CHNCXR_0600_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3480,
+     400
+    ],
+    "summary": [
+     348,
+     55
+    ]
+   },
+   "cost_usd": 0.010387,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "high"
+  },
+  {
+   "image_id": "CHNCXR_0662_1",
+   "label": 1,
+   "primary_label": "tb_suspected",
+   "checks": {
+    "schema": true,
+    "risk_consistent": true,
+    "evidence": true,
+    "grounded_zones": true,
+    "recommendations": true,
+    "summary_guardrails": true,
+    "summary_physician": true,
+    "summary_korean": true
+   },
+   "passed": true,
+   "latency_s": 0.0,
+   "tokens": {
+    "report": [
+     3211,
+     400
+    ],
+    "summary": [
+     334,
+     55
+    ]
+   },
+   "cost_usd": 0.009844,
+   "models": [
+    "gpt-4.1",
+    "gpt-4.1-mini"
+   ],
+   "report_level": "high"
+  }
+ ]
+}
