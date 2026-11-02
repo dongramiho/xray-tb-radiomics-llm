@@ -42,6 +42,7 @@ jobs:
           LLM_BACKEND: fake
         run: pytest
       - name: Migrations apply on a fresh database
+        if: hashFiles('WebBack/alembic.ini') != ''
         env:
           DATABASE_URL: sqlite:////tmp/ci.db
         run: alembic upgrade head
@@ -73,8 +74,14 @@ jobs:
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
+      - name: Detect Dockerfiles
+        id: detect
+        run: |
+          if [ -f WebBack/Dockerfile ] && [ -f WebFront/Dockerfile ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
       - uses: docker/setup-buildx-action@v3
+        if: steps.detect.outputs.present == 'true'
       - name: Build backend image
+        if: steps.detect.outputs.present == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -83,6 +90,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build frontend image
+        if: steps.detect.outputs.present == 'true'
         uses: docker/build-push-action@v6
         with:
           context: WebFront
