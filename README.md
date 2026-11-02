@@ -114,7 +114,7 @@ scripts/download_models.sh              # U-Net 가중치 (GitHub Releases, 89MB
 docker compose up --build               # 프론트 http://localhost:3000, API http://localhost:8000/docs
 ```
 
-PostgreSQL + 백엔드(TensorFlow CPU) + 프론트엔드가 뜹니다. 백엔드 컨테이너는 시작 시 가중치가 없으면 내려받고, `alembic upgrade head` 로 스키마를 맞춘 뒤 기동합니다. 로그인 계정은 `.env` 의 `SEED_DOCTOR_EMAIL` / `SEED_DOCTOR_PASSWORD` (기본 `doctor@test.com` / `changeme`, production 에서는 기본값이면 기동을 거부).
+PostgreSQL + 백엔드(TensorFlow CPU) + 프론트엔드가 뜹니다. 가중치 다운로드는 레포가 private 인 동안 `gh` 로그인 또는 `GITHUB_TOKEN` 이 필요합니다. 백엔드 컨테이너는 시작 시 가중치가 없으면 내려받고, `alembic upgrade head` 로 스키마를 맞춘 뒤 기동합니다. 로그인 계정은 `.env` 의 `SEED_DOCTOR_EMAIL` / `SEED_DOCTOR_PASSWORD` (기본 `doctor@test.com` / `changeme`, production 에서는 기본값이면 기동을 거부).
 
 ### 로컬 개발
 
