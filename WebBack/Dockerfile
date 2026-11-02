@@ -11,11 +11,11 @@ WORKDIR /app
 # Model package first (cached unless model/ changes); pyradiomics compiles its C extensions here.
 COPY model/pyproject.toml model/__init__.py model/config.py /app/model/
 COPY model/src /app/model/src
-RUN pip install --upgrade pip && pip install "numpy<2" \
+RUN pip install --upgrade pip && pip install "numpy<2" versioneer \
     && pip install --no-build-isolation -e "/app/model[inference]"
 
 COPY WebBack/requirements.txt /app/WebBack/requirements.txt
-RUN grep -vE '^-e' /app/WebBack/requirements.txt > /tmp/req.txt && pip install -r /tmp/req.txt
+RUN pip install -r /app/WebBack/requirements.txt
 
 COPY WebBack /app/WebBack
 COPY model/outputs/classifier /app/model/outputs/classifier

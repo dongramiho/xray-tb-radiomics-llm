@@ -17,8 +17,8 @@ FastAPI 백엔드. 실행 방법과 환경 변수는 루트 [README](../README.m
 
 ```bash
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install "numpy<2" && pip install --no-build-isolation -e "../model[inference]"
-grep -vE '^-e' requirements.txt | pip install -r /dev/stdin
+pip install "numpy<2" versioneer && pip install --no-build-isolation -e "../model[inference]"
+pip install -r requirements.txt
 cp .env.example .env            # OPENAI_API_KEY 등
 uvicorn main:app --reload --port 8000   # http://127.0.0.1:8000/docs
 pytest

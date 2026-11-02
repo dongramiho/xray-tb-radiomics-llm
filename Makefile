@@ -2,9 +2,9 @@
 .PHONY: setup backend frontend test lint compose
 
 setup:            ## create the backend venv and install everything (incl. model package)
-	cd WebBack && python3.11 -m venv .venv && .venv/bin/pip install --upgrade pip "numpy<2" \
+	cd WebBack && python3.11 -m venv .venv && .venv/bin/pip install --upgrade pip "numpy<2" versioneer \
 	  && .venv/bin/pip install --no-build-isolation -e "../model[inference]" \
-	  && grep -vE '^-e' requirements.txt > /tmp/req.txt && .venv/bin/pip install -r /tmp/req.txt
+	  && .venv/bin/pip install -r requirements.txt
 	cd WebFront && npm install --no-audit --no-fund
 
 models:           ## download U-Net weights from the GitHub release
