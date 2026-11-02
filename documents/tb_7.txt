@@ -1,0 +1,27 @@
+# Topic 3: Differential Diagnosis of TB (유사 질환과의 감별 포인트)
+
+## Summary
+결핵은 영상 소견상 폐암, 진균 감염, 사르코이드증 등과 유사하게 보일 수 있다. 이들의 차이점을 정리하고 감별 진단 근거를 제공하는 것이 중요하다.
+결핵은 영상학적으로 다양한 병변을 나타내며, 특히 X-ray 및 CT에서의 소견은 활동성 여부 판단에 중요한 단서를 제공한다. 상엽 침윤, 공동, 기관지 음영, 림프절 비대 등이 전형적인 결핵 소견이다.
+결핵은 영상에서 폐암, 폐렴, 진균 감염 등과 유사해 보일 수 있으므로 Radiomics 피쳐를 이용한 차별화된 분석이 필요하다. 이를 통해 병변의 성질, 경계, 위치 등을 기반으로 고도 감별이 가능하다.
+
+## Differential Points
+- **폐암 vs 결핵**: 폐암은 단일, 불규칙 병변이 많고 결핵은 다발성, 침윤성 병변이 일반적.
+- **Sarcoidosis vs 결핵**: 사르코이드증은 대칭적 hilar lymphadenopathy, 결핵은 비대칭적인 림프절 비대.
+- **Fungal Infection vs 결핵**: Aspergilloma는 cavity 내 fungus ball 보이지만, 결핵은 공허한 공동.
+- **임상 양상**: 체중 감소, 발열, 침윤 양상 등도 감별에 기여.
+- **TB vs Pneumonia**: 섬유화 및 공동 유무, 병변 경계선 명확성.
+- **TB vs Cancer**: TB는 다발성, 불규칙한 패턴. 암은 단일 병변이 일반적.
+- **TB vs Fungal Infection**: Aspergilloma는 fungus ball 동반, TB는 비어있는 공동.
+
+## 주요 패턴
+- Tree-in-bud appearance: 기관지 내 결핵균 확산 시사
+- Miliary nodules: 미만성 작고 균일한 결절
+- Upper lobe predominance: 결핵의 상엽 선호 경향
+- Bronchogenic spread: 기관지 경로를 따라 퍼지는 병변
+
+## Example Sentences
+- “결핵은 분절성 다발성 병변이 특징인 반면, 폐암은 단일 병변의 비대칭적 형태가 흔하다.”
+- “사르코이드증은 림프절 비대가 양측 대칭인 경우가 많지만, 결핵은 비대칭이 일반적이다.”
+- “Radiomics 분석 결과, 폐렴은 결핵에 비해 병변 경계가 뚜렷하지 않고, 공동 형성이 드뭅니다.”
+-“Tree-in-bud appearance on CT is highly indicative of endobronchial spread of active tuberculosis.”

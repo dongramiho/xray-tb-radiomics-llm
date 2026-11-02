@@ -1,0 +1,125 @@
+{
+  "dataset": {
+    "file": "outputs/radiomics/features_with_synthetic_normals.csv",
+    "samples": 430,
+    "features": 102,
+    "tb": 330,
+    "normal": 100,
+    "note": "Normal 100 samples are synthetic; analysis only, not clinical."
+  },
+  "logreg": {
+    "roc_auc": 1.0,
+    "report": {
+      "0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 20.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 66.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 86.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 86.0
+      }
+    }
+  },
+  "random_forest": {
+    "roc_auc": 1.0,
+    "report": {
+      "0": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 20.0
+      },
+      "1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 66.0
+      },
+      "accuracy": 1.0,
+      "macro avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 86.0
+      },
+      "weighted avg": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 86.0
+      }
+    },
+    "feature_importance_top10": [
+      {
+        "feature": "original_glcm_Imc1",
+        "importance": 0.22146515262089497
+      },
+      {
+        "feature": "original_firstorder_Maximum",
+        "importance": 0.09920766439252111
+      },
+      {
+        "feature": "original_firstorder_Range",
+        "importance": 0.09046836293554351
+      },
+      {
+        "feature": "original_glcm_Imc2",
+        "importance": 0.09046461237081396
+      },
+      {
+        "feature": "original_glcm_Idmn",
+        "importance": 0.08295208563768676
+      },
+      {
+        "feature": "original_glcm_Idn",
+        "importance": 0.0776288087458565
+      },
+      {
+        "feature": "original_glszm_ZoneEntropy",
+        "importance": 0.04313120124481508
+      },
+      {
+        "feature": "original_glcm_MCC",
+        "importance": 0.036601263782084933
+      },
+      {
+        "feature": "original_firstorder_Minimum",
+        "importance": 0.025533780704809675
+      },
+      {
+        "feature": "original_glszm_SmallAreaEmphasis",
+        "importance": 0.017861450200795617
+      }
+    ],
+    "group_importance": {
+      "firstorder": 0.2396907092672334,
+      "glcm": 0.5722353732746164,
+      "glrlm": 0.042304072164474696,
+      "glszm": 0.07950720366207635,
+      "gldm": 0.030843772974466065,
+      "ngtdm": 0.017670140370472022,
+      "shape2D": 0.017748728286661283
+    }
+  },
+  "disclaimer": [
+    "Synthetic normals used; external validation required.",
+    "Not for clinical decision-making."
+  ]
+}

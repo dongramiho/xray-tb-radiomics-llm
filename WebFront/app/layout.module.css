@@ -1,0 +1,25 @@
+.body {
+  margin: 0;
+  padding: 0;
+  /* 👇 배경색을 아주 진한 색(#09090b)으로 강제 고정 */
+  background-color: #09090b; 
+  color: #ededed;
+  font-family: var(--font-geist-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.layoutContainer {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  /*background-color: #09090b; */
+}
+
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}

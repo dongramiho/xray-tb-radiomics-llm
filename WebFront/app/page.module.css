@@ -1,0 +1,31 @@
+.layout {
+  display: flex;
+  height: 100vh;
+  background: #0a0a0a;
+  color: #fafafa;
+  font-family: var(--font-geist-sans);
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #18181b;
+}
+
+.placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+  text-align: center;
+}
+
+.placeholderIcon {
+  opacity: 0.5;
+  margin-bottom: 1rem;
+}

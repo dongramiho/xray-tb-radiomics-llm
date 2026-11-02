@@ -1,0 +1,29 @@
+# Topic 4: Segmentation Evaluation Metrics in Medical Imaging (의료영상 기반 Segmentation 평가 지표)
+
+## Summary
+X-ray 또는 CT 기반 결핵 병변의 자동 분할 결과를 정량적으로 평가하기 위해 다양한 지표가 사용된다. 특히 Dice 계수와 IoU는 가장 널리 사용되는 메트릭이다.
+Radiomics 기반 TB 분석 모델의 성능을 정량적으로 평가하기 위한 지표들은 다양하다. 분류 성능뿐 아니라 분할 성능까지 고려해야 하며, 이는 LLM 피드백의 신뢰도 판단에도 활용 가능하다.
+결핵 영상 진단의 정확도와 일관성을 확보하기 위해 다양한 정량적 평가 지표와 AI 도구들이 사용되고 있다.
+
+## Key Metrics
+- **Dice Similarity Coefficient (DSC)**: 예측 마스크와 실제 라벨 간의 중첩률. 1에 가까울수록 정확한 예측.
+- **Intersection over Union (IoU)**: 예측된 영역과 실제 병변의 교집합/합집합 비율.
+- **Precision/Recall/F1-score**: 특히 소병변 감지 시 recall 중요.
+- **LLM 적용 시**: LLM이 설명을 제공할 때 신뢰성 수치로 첨부 가능.
+- **Accuracy**: 전체 정확도
+- **Sensitivity / Specificity**: 민감도, 특이도
+- **AUC (Area Under the ROC Curve)**: 클래스 간 분류 정확도
+- **F1-Score**: Precision과 Recall의 조화 평균
+- **Dice Coefficient / IoU**: 병변 분할 결과 평가
+
+## 주요 평가 도구 및 지표
+- Radiographic severity score: 병변의 심각도 정량화
+- Observer agreement: 판독자 간 일치도 (Cohen’s kappa)
+- AI-assisted accuracy: Radiomics 기반 분류 정확도
+- AI 보조 진단툴은 Radiologist와의 정합성 향상에 기여
+
+## Example Sentences
+- “Dice 계수는 예측된 병변 마스크와 실제 라벨의 중첩 정도를 나타내며, 1에 가까울수록 정밀한 분할을 의미한다.”
+- “IoU는 분할된 병변의 정밀도를 평가하는 데 사용되며, 의료 AI 평가의 핵심 지표 중 하나이다.”
+- “XGBoost 기반 Radiomics 모델은 TB 분류에서 AUC 0.93으로 가장 우수한 성능을 보였습니다.”
+- “Quantitative severity scores in chest radiographs help standardize TB evaluation, enabling AI models to align with radiologist assessments.”

@@ -1,0 +1,33 @@
+# Topic 2: Pattern-based Reasoning in TB Imaging (TB의 영상학적 소견 패턴 설명)
+
+## Summary
+결핵은 단일 병변보다는 특정한 영상 패턴의 조합으로 나타나는 경우가 많다. 이러한 패턴을 기반으로 질병의 존재 여부를 추론하는 접근 방식이 Pattern-based Reasoning이다.
+Radiomics는 의료 영상에서 수치화 가능한 고차원 정보를 추출하는 기술로, 머신러닝과 결합해 질병을 예측하거나 분류하는 데 활용된다. TB 영상 분석에선 특히 텍스처 기반 피쳐들이 주목받고 있다.
+결핵과 유사한 소견을 보이는 폐 질환들과의 감별이 중요하며, 병변의 모양, 위치, 진행 양상 등을 통해 구분할 수 있다.
+
+## Key Points
+- **Tree-in-bud**: 기관지 확산의 전형적 소견으로, 소기도 단위의 병변.
+- **Upper lobe predominance**: TB가 상엽을 선호하는 경향.
+- **Clustered micronodules**: 만성 결핵에서 관찰되는 결절 집합.
+- **Bronchogenic spread**: 병변이 소엽 단위로 퍼지는 기관지성 전파 양상.
+- **Texture Features**: GLCM, GLRLM, wavelet 등으로 엣지, 균질성, 대비 측정.
+- **Shape & Statistical Features**: 병변의 크기, 모양, 픽셀 강도 평균/표준편차 등.
+- **Feature Selection**: Variance thresholding, recursive feature elimination 등.
+- **Used ML Models**: SVM, Random Forest, XGBoost 등.
+
+## 구분 대상 질환
+- 세균성 폐렴 (Bacterial pneumonia)
+- 폐암 (Lung cancer)
+- 진균 감염 (Fungal infections)
+- 조직구증 (Sarcoidosis)
+
+## 감별 기준
+- 병변의 분포 (segmental vs diffuse)
+- 경계의 명확성 (irregular vs well-defined)
+- 진행 속도 (acute vs chronic)
+- 림프절 침범 여부
+
+## Example Sentences
+- “Tree-in-bud pattern은 활동성 결핵의 중요한 지표이며, 전염력 있는 상태임을 시사한다.”
+- “상엽 우세 침범은 재활성화 TB에서 흔히 나타나는 소견이다.”
+- “Wavelet 기반 텍스처 피쳐는 결핵 병변의 엣지 특성을 정량화하여 진단 정확도 향상에 기여할 수 있습니다.”

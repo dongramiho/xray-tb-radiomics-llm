@@ -1,0 +1,79 @@
+.wrapper {
+  padding: 1rem;
+  padding-bottom: 2rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.container {
+  background: #27272a;
+  border-radius: 1.5rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #3f3f46;
+  position: relative;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 25%);
+}
+
+.imagePreviewWrapper {
+  padding: 0.5rem;
+  position: relative;
+  width: fit-content;
+}
+
+.previewImage {
+  height: 5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #52525b;
+}
+
+.removeButton {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #52525b;
+  border-radius: 9999px;
+  padding: 0.25rem;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.textInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  height: 2.5rem;
+  color: white;
+}
+
+.imageButton {
+  padding: 0.5rem;
+  color: #a1a1aa;
+}
+
+.imageButton:hover {
+  color: white;
+}
+
+.sendButton {
+  padding: 0.5rem;
+  border-radius: 9999px;
+  transition: all 0.2s ease;
+}
+
+.sendActive {
+  background: white;
+  color: black;
+}
+
+.sendInactive {
+  background: #3f3f46;
+  color: #71717a;
+}

@@ -1,0 +1,34 @@
+# Topic 1: Radiological Features of Tuberculosis (결핵성 병변의 주요 영상 피쳐)
+
+## Summary
+결핵성 병변은 흉부 X-ray에서 특정한 패턴으로 나타나며, 병변의 형태와 위치를 통해 활동성 여부를 추정할 수 있다. Cavitation, consolidation, 소엽결절 등은 결핵의 전형적인 영상학적 특징이다.
+결핵은 영상학적으로 다양한 병변을 나타내며, 특히 X-ray 및 CT에서의 소견은 활동성 여부 판단에 중요한 단서를 제공한다. 상엽 침윤, 공동, 기관지 음영, 림프절 비대 등이 전형적인 결핵 소견이다.
+
+## Key Points
+- **Cavitation**: 폐 조직의 괴사로 인해 형성되며, 활동성 결핵의 지표.
+- **Consolidation**: 폐 실질 내 공기 대체 병변으로 음영 증가를 유발.
+- **소엽결절**: 기관지주위 결절은 전염성 TB의 특징일 수 있음.
+- **폐섬유화(Fibrosis)**: 만성 결핵의 흔적 병변.
+- **흉막삼출(Pleural effusion)**: 활동성 또는 잠복 결핵에서도 관찰됨.
+- **폐문 림프절 비대**: 특히 소아나 면역저하자에서 흔히 나타나는 소견.
+- **Consolidation**: 폐 실질 내 염증이나 삼출물로 인해 음영 증가.
+- **Cavities**: 조직 괴사로 생긴 공동, 활동성 결핵에서 흔히 관찰됨.
+- **Nodules / Fibrosis**: 만성 병변의 형태로 소엽결절과 섬유화 흔함.
+- **Pleural Effusion**: 흉막삼출은 결핵성 흉막염의 징후.
+- **Upper Lobe Predominance**: TB는 상엽을 선호하는 경향.
+- **Air Bronchogram**: 침윤된 폐조직 내 공기기관지 음영.
+- **Hilar Lymphadenopathy**: 폐문 림프절 비대, 특히 소아에서 중요.
+
+## 주요 소견
+- 상엽 중심의 air-space opacity
+- 폐 용적 감소를 동반한 섬유화
+- 공동(cavities) 형성
+- 석회화된 결절(calcified nodules)
+- 흉막삼출(pleural effusion)
+- 각 소견은 과거 감염 vs 활동성 결핵 구분에 활용됨
+
+## Example Sentences
+- “TB의 공동은 주로 상엽에서 발생하며, 병변의 활동성을 시사한다.”
+- “Consolidation은 염증에 의해 폐 실질이 공기 대신 삼출물로 대체되며 결핵 진단에 중요한 힌트를 제공한다.”
+- “상엽 침윤과 공기 기관지 음영은 활동성 결핵을 시사하는 대표적인 소견입니다.”
+-“Post-primary TB typically presents with fibrocavitary lesions in the upper lobes, often associated with volume loss and traction bronchiectasis.”

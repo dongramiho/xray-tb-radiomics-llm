@@ -1,0 +1,65 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background: #18181b;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  width: 24rem;
+  border: 1px solid #3f3f46;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  margin-bottom: 0.25rem;
+}
+
+.input {
+  width: 100%;
+  background: #27272a;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  color: white;
+  border: 1px solid #3f3f46;
+}
+
+.radioRow {
+  display: flex;
+  gap: 1rem;
+}
+
+.footer {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.cancelButton {
+  flex: 1;
+  padding: 0.75rem;
+  background: #27272a;
+  color: #d4d4d8;
+  border-radius: 0.5rem;
+}
+
+.confirmButton {
+  flex: 1;
+  padding: 0.75rem;
+  background: #2563eb;
+  color: white;
+  border-radius: 0.5rem;
+  font-weight: bold;
+}
+
+.confirmButton:hover {
+  background: #3b82f6;
+}

@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Backend runtime
+WebBack/*.db
+WebBack/static/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Model artifacts: weights and bulk outputs are distributed via GitHub Releases, not git
+model/data/
+model/outputs/checkpoints/
+model/outputs/predictions/
+model/outputs/logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.code-workspace
