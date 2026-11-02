@@ -14,3 +14,12 @@ class PatientResponse(BaseModel):
     name: str
     birthDate: str
     gender: str
+
+
+class SessionCreate(BaseModel):
+    title: str | None = Field(default=None, max_length=120)
+
+
+class FeedbackIn(BaseModel):
+    agree: bool
+    note: str | None = Field(default=None, max_length=2000)

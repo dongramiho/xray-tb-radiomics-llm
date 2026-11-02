@@ -1,21 +1,87 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./ChatWindow.module.css";
-import { User } from "lucide-react";
-import { Patient, Message } from "@/types";
+import { TriangleAlert, User } from "lucide-react";
+import AnalysisCard from "./AnalysisCard";
+import { resolveMediaUrl } from "@/utils/api";
+import { Patient, Message, FeedbackResult } from "@/types";
 
 interface ChatWindowProps {
   messages: Message[];
   activePatient: Patient;
+  /** Slim bar rendered between the patient header and the message list (e.g. session picker). */
+  toolbar?: ReactNode;
+  loading?: boolean;
+  onFeedbackSaved?: (messageId: number, result: FeedbackResult) => void;
 }
 
-export default function ChatWindow({ messages, activePatient }: ChatWindowProps) {
+const BULLET_RE = /^\s*[-•*]\s+/;
+
+type TextGroup = { type: "ul" | "p"; lines: string[] };
+
+// Plain-text formatting without a markdown library: blank lines split paragraphs,
+// consecutive "- " / "• " lines become a bullet list, single line breaks are kept.
+function FormattedText({ text }: { text: string }) {
+  const blocks = text.split(/\n[ \t]*\n/);
+  return (
+    <div className={styles.contentBlocks}>
+      {blocks.map((block, blockIdx) => {
+        const groups: TextGroup[] = [];
+        for (const line of block.split("\n")) {
+          if (line.trim() === "") continue;
+          const type: TextGroup["type"] = BULLET_RE.test(line) ? "ul" : "p";
+          const last = groups[groups.length - 1];
+          if (last && last.type === type) last.lines.push(line);
+          else groups.push({ type, lines: [line] });
+        }
+        return groups.map((group, groupIdx) =>
+          group.type === "ul" ? (
+            <ul key={`${blockIdx}-${groupIdx}`} className={styles.bulletList}>
+              {group.lines.map((line, lineIdx) => (
+                <li key={lineIdx}>{line.replace(BULLET_RE, "")}</li>
+              ))}
+            </ul>
+          ) : (
+            <p key={`${blockIdx}-${groupIdx}`} className={styles.messageText}>
+              {group.lines.join("\n")}
+            </p>
+          ),
+        );
+      })}
+    </div>
+  );
+}
+
+// The clinician's upload that this reply analysed: the closest preceding user message's image.
+function precedingUserImage(messages: Message[], index: number): string | undefined {
+  for (let i = index - 1; i >= 0; i--) {
+    if (messages[i].role === "user") return messages[i].image_path ?? undefined;
+  }
+  return undefined;
+}
+
+// Keyed by diagnosis so the card keeps its toggles when the provisional streaming
+// message is swapped for the persisted one at the end of the stream.
+// A repeated key (same diagnosis on two replies) falls back to the message index.
+function messageKeys(messages: Message[]): string[] {
+  const seen = new Set<string>();
+  return messages.map((msg, idx) => {
+    const base = msg.analysis ? `d${msg.analysis.diagnosis_id}` : `m${msg.id}`;
+    const key = seen.has(base) ? `${base}-${idx}` : base;
+    seen.add(key);
+    return key;
+  });
+}
+
+export default function ChatWindow({ messages, activePatient, toolbar, loading = false, onFeedbackSaved }: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const keys = messageKeys(messages);
 
   return (
     <>
@@ -30,53 +96,61 @@ export default function ChatWindow({ messages, activePatient }: ChatWindowProps)
         </div>
       </header>
 
+      {toolbar}
+
       {/* 메시지 영역 */}
       <section className={styles.chatArea}>
         <div className={styles.centeredContainer}>
+          {loading && <p className={styles.emptyState}>대화를 불러오는 중...</p>}
+          {!loading && messages.length === 0 && (
+            <p className={styles.emptyState}>아직 대화가 없습니다. X-ray 영상을 첨부하거나 질문을 입력해주세요.</p>
+          )}
+
           {messages.map((msg, idx) => (
             <div
-              key={idx}
-              className={`${styles.messageRow} ${
-                msg.role === "user" ? styles.userMessage : ""
-              }`}
+              key={keys[idx]}
+              className={`${styles.messageRow} ${msg.role === "user" ? styles.userMessage : ""}`}
             >
               {msg.role === "assistant" && <div className={styles.aiIcon}>AI</div>}
 
-              <div
-                className={`${styles.messageBubble} ${
-                  msg.role === "user" ? styles.userBubble : styles.aiBubble
-                }`}
-              >
-                {msg.image_path && (
-                  <img
-                    src={msg.image_path}
-                    className={styles.messageImage}
-                    alt="xray"
-                  />
-                )}
+              <div className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.aiBubble}`}>
+                {msg.role === "user" ? (
+                  <>
+                    {msg.image_path && (
+                      <img src={resolveMediaUrl(msg.image_path)} className={styles.messageImage} alt="업로드한 X-ray 영상" />
+                    )}
+                    {msg.content && <p className={styles.messageText}>{msg.content}</p>}
+                  </>
+                ) : (
+                  <>
+                    {msg.analysis && (
+                      <AnalysisCard
+                        analysis={msg.analysis}
+                        originalImageUrl={precedingUserImage(messages, idx)}
+                        onFeedbackSaved={onFeedbackSaved ? (result) => onFeedbackSaved(msg.id, result) : undefined}
+                      />
+                    )}
 
-                {msg.analysis?.overlay_url && (
-                  <figure className={styles.analysisFigure}>
-                    <img
-                      src={msg.analysis.overlay_url}
-                      className={styles.messageImage}
-                      alt="U-Net 병변 분할 오버레이"
-                    />
-                    <figcaption className={styles.analysisCaption}>
-                      {msg.analysis.ml_results?.primary_label ?? "분석"}
-                      {msg.analysis.ml_results?.tb_probability != null &&
-                        ` · TB 확률 ${(msg.analysis.ml_results.tb_probability * 100).toFixed(0)}%`}
-                      {msg.analysis.segmentation?.zones?.length
-                        ? ` · ${msg.analysis.segmentation.zones.join(", ")}`
-                        : ""}
-                    </figcaption>
-                  </figure>
-                )}
+                    {msg.content && <FormattedText text={msg.content} />}
 
-                <p className={styles.messageText}>{msg.content}</p>
+                    {msg.error && (
+                      <p className={styles.errorText} role="alert">
+                        <TriangleAlert size={14} aria-hidden="true" /> {msg.error}
+                      </p>
+                    )}
+
+                    {msg.streaming && (
+                      <div className={styles.streamingRow} role="status" aria-live="polite">
+                        <span className={styles.pulseDot} aria-hidden="true" />
+                        <span>{msg.status ?? "응답 생성 중..."}</span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           ))}
+          <div ref={scrollRef} />
         </div>
       </section>
     </>

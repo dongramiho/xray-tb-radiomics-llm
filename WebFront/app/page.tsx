@@ -4,17 +4,15 @@ import { useState, useEffect } from "react";
 import styles from "./page.module.css";
 import { UserPlus } from "lucide-react";
 
-import InputBar from "@/components/InputBar";
-import ChatWindow from "@/components/ChatWindow";
+import PatientChat from "@/components/PatientChat";
 import PatientModal from "@/components/PatientModal";
 
-import { fetchPatients, fetchMessages, registerPatient, sendMessage } from "@/utils/api";
-import { Patient, Message } from "@/types";
+import { fetchPatients, registerPatient } from "@/utils/api";
+import { Patient } from "@/types";
 
 export default function Home() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [activePatientId, setActivePatientId] = useState<number | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const activePatient = patients.find((p) => p.id === activePatientId);
@@ -25,14 +23,6 @@ export default function Home() {
       .then(setPatients)
       .catch((err) => console.error(err));
   }, []);
-
-  // 환자 선택 → 메시지 로드
-  useEffect(() => {
-    if (!activePatientId) return;
-    fetchMessages(activePatientId)
-      .then(setMessages)
-      .catch((err) => console.error(err));
-  }, [activePatientId]);
 
   // 환자 등록
   const handleRegister = async (formData: { name: string; birthDate: string; gender: string }) => {
@@ -61,30 +51,8 @@ export default function Home() {
     }
   };
 
-  // 메시지 전송
-  const handleSend = async (text: string, file: File | null) => {
-    if (!activePatientId) return;
-
-    const tempMsg: Message = {
-      id: Date.now(),
-      role: "user",
-      content: text,
-      image_path: file ? URL.createObjectURL(file) : undefined,
-    };
-
-    setMessages((prev) => [...prev, tempMsg]);
-
-    try {
-      const aiMsg = await sendMessage(activePatientId, text, file);
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch (e) {
-      console.error(e);
-      alert("전송 실패");
-    }
-  };
-
   return (
-  
+
     <div className={styles.layout}>
       {/*<Sidebar
         patients={patients}
@@ -94,11 +62,9 @@ export default function Home() {
       />*/}
 
       <main className={styles.main}>
-        {activePatientId && activePatient ? (
-          <>
-            <ChatWindow messages={messages} activePatient={activePatient} />
-            <InputBar onSendMessage={handleSend} disabled={false} />
-          </>
+        {activePatient ? (
+          // 세션 선택 / 스트리밍 전송은 PatientChat 이 담당 (key 로 환자 전환 시 상태 초기화)
+          <PatientChat key={activePatient.id} patient={activePatient} />
         ) : (
           <div className={styles.placeholder}>
             <UserPlus size={48} className={styles.placeholderIcon} />

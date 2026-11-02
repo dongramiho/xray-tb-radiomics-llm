@@ -1,0 +1,527 @@
+/* 어시스턴트 말풍선 안의 분석 결과 카드 (다크 zinc 팔레트) */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 38rem;
+  padding: 0.75rem;
+  background: rgba(39, 39, 42, 0.45);
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+}
+
+/* ---- 영상 ---- */
+.imageArea {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.image {
+  width: 100%;
+  max-height: 28rem;
+  object-fit: contain;
+  background: #09090b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+}
+
+.viewToggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  width: fit-content;
+  padding: 0.2rem;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+}
+
+.viewButton {
+  padding: 0.3rem 0.7rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.viewButton:hover {
+  color: #e4e4e7;
+}
+
+.viewActive {
+  background: #2563eb;
+  color: white;
+}
+
+.viewActive:hover {
+  color: white;
+}
+
+/* ---- 헤더: 위험도 / 분류 / 확률 ---- */
+.headerRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
+.riskBadge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.riskLow {
+  color: #4ade80;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.riskModerate {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.riskHigh {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.primaryLabel {
+  font-weight: 600;
+  color: #fafafa;
+}
+
+.probability {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 10rem;
+  min-width: 10rem;
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #d4d4d8;
+}
+
+.probTrack {
+  flex: 1;
+  height: 0.4rem;
+  background: #3f3f46;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.probFill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+/* 확률 바 색은 위험도 배지 글자색을 따라감 */
+.probFill.riskLow {
+  background: #4ade80;
+}
+
+.probFill.riskModerate {
+  background: #fbbf24;
+}
+
+.probFill.riskHigh {
+  background: #f87171;
+}
+
+.probValue {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- 분할 요약 ---- */
+.segmentation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 9999px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+  font-size: 0.7rem;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.stats > div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.stats dt {
+  color: #a1a1aa;
+}
+
+.stats dd {
+  margin: 0;
+  color: #e4e4e7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 섹션 공통 ---- */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #27272a;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+
+/* ---- 주요 기여 특징 ---- */
+.featureTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.featureTable th {
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid #27272a;
+  text-align: left;
+  font-weight: 500;
+  color: #71717a;
+}
+
+.featureTable td {
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid rgba(39, 39, 42, 0.6);
+  color: #d4d4d8;
+  vertical-align: middle;
+}
+
+.featureTable tr:last-child td {
+  border-bottom: none;
+}
+
+.featureName {
+  font-family: var(--font-geist-mono), monospace;
+  color: #e4e4e7;
+  word-break: break-all;
+}
+
+.featureValue {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.importanceCell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 8rem;
+}
+
+.importanceTrack {
+  flex: 1;
+  height: 0.25rem;
+  background: #3f3f46;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.importanceFill {
+  height: 100%;
+  background: #60a5fa;
+  border-radius: 9999px;
+}
+
+/* ---- 구조화 리포트 (접힘) ---- */
+.collapseButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0;
+  border: none;
+  background: transparent;
+  color: #e4e4e7;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.collapseButton:hover {
+  color: #60a5fa;
+}
+
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #d4d4d8;
+}
+
+.reportBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reportBlock h5 {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+
+.reportBlock p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.subLabel {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #71717a;
+}
+
+.reportList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+
+.evidenceList {
+  list-style: none;
+  padding-left: 0;
+  gap: 0.5rem;
+}
+
+.evidenceItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.evidenceMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: #71717a;
+}
+
+.jsonPre {
+  margin: 0.25rem 0 0;
+  padding: 0.6rem;
+  max-height: 20rem;
+  overflow: auto;
+  background: #09090b;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.7rem;
+  color: #a1a1aa;
+  white-space: pre;
+}
+
+/* ---- 의사 피드백 ---- */
+.feedbackRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #27272a;
+}
+
+.feedbackButtons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+}
+
+.feedbackButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #d4d4d8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feedbackButton:hover {
+  border-color: #52525b;
+  color: white;
+}
+
+.feedbackButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.agreeActive,
+.agreeActive:hover {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: #4ade80;
+}
+
+.disagreeActive,
+.disagreeActive:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #f87171;
+}
+
+.savedHint {
+  font-size: 0.7rem;
+  color: #71717a;
+}
+
+.spinner {
+  color: #60a5fa;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.noteArea {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.noteTextarea {
+  width: 100%;
+  min-height: 4rem;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+  color: #e4e4e7;
+  font-size: 0.8rem;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.noteTextarea:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.noteTextarea::placeholder {
+  color: #52525b;
+}
+
+.noteActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.smallButton {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #3f3f46;
+  border-radius: 0.4rem;
+  background: #27272a;
+  color: #d4d4d8;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.smallButton:hover {
+  border-color: #52525b;
+  color: white;
+}
+
+.smallButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.smallButtonPrimary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+}
+
+.smallButtonPrimary:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.savedNote {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #d4d4d8;
+  white-space: pre-wrap;
+}
+
+/* ---- LLM 메타 ---- */
+.meta {
+  margin: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid #27272a;
+  font-size: 0.68rem;
+  color: #71717a;
+  font-variant-numeric: tabular-nums;
+}

@@ -19,6 +19,9 @@
 | `ENVIRONMENT` | `development` / `staging` / `production` | `production` 이면 아래 검증이 기동 시 수행됨 |
 | `OPENAI_API_KEY` | OpenAI 키 | 필수 (`LLM_BACKEND=fake` 불가) |
 | `REPORT_MODEL`, `SUMMARY_MODEL` | 1차 리포트 / 2차 요약 모델 | |
+| `REPORT_FALLBACK_MODEL`, `SUMMARY_FALLBACK_MODEL` | 재시도 소진 후 폴백 모델 | |
+| `LLM_TIMEOUT_S`, `LLM_MAX_RETRIES` | 요청 타임아웃(기본 60s), 429/5xx 재시도 횟수(기본 2) | |
+| `EMBEDDING_MODEL`, `RAG_TOP_K` | 지식베이스 임베딩 모델, 케이스당 주입 청크 수(기본 6) | |
 | `JWT_SECRET` | HS256 서명 키 | 32자 이상 무작위 문자열 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 토큰 만료 (기본 720) | |
 | `SEED_DOCTOR_EMAIL` / `_PASSWORD` / `_NAME` | 운영자가 발급하는 임상의 계정 | 기본 비밀번호(`changeme`)면 기동 거부 |

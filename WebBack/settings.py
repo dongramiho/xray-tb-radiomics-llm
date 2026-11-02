@@ -56,6 +56,16 @@ class Settings(BaseSettings):
     report_model: str = Field(default="gpt-4.1", description="Stage 1: structured clinical report")
     summary_model: str = Field(default="gpt-4.1-mini", description="Stage 2: clinician-facing summary")
     kb_dir: Path = Field(default=BACKEND_DIR / "documents")
+    report_fallback_model: str = Field(
+        default="gpt-4.1-mini", description="Used when the report model fails after retries"
+    )
+    summary_fallback_model: str = Field(
+        default="gpt-4.1", description="Used when the summary model fails after retries"
+    )
+    llm_timeout_s: float = Field(default=60.0, description="Per-request timeout for OpenAI calls")
+    llm_max_retries: int = Field(default=2, description="Retries on rate limits / transient errors before fallback")
+    embedding_model: str = Field(default="text-embedding-3-small")
+    rag_top_k: int = Field(default=6, description="Knowledge-base chunks injected into the report prompt")
 
     def validate_for_environment(self) -> None:
         """Refuse obviously unsafe production configuration early (at startup, not at first request)."""

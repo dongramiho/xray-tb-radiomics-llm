@@ -1,0 +1,70 @@
+{
+ "image_id": "CHNCXR_0003_0",
+ "label": 0,
+ "case": {
+  "image": {
+   "id": "CHNCXR_0003_0",
+   "width": 2987,
+   "height": 2945,
+   "model_resolution": [
+    512,
+    512
+   ]
+  },
+  "segmentation": {
+   "detected": false,
+   "mask_area_fraction": 0.000469,
+   "num_components": 2,
+   "zones": [
+    "right upper zone"
+   ],
+   "components": [
+    {
+     "area_px": 106,
+     "area_fraction": 0.00040435791015625,
+     "bbox": [
+      163,
+      84,
+      188,
+      93
+     ],
+     "centroid": [
+      0.3368,
+      0.1731
+     ],
+     "zone": "right upper zone",
+     "max_probability": 0.6267922520637512
+    },
+    {
+     "area_px": 17,
+     "area_fraction": 6.4849853515625e-05,
+     "bbox": [
+      169,
+      83,
+      182,
+      86
+     ],
+     "centroid": [
+      0.3415,
+      0.1649
+     ],
+     "zone": "right upper zone",
+     "max_probability": 0.555218517780304
+    }
+   ],
+   "max_probability": 0.6268,
+   "model_resolution": [
+    512,
+    512
+   ]
+  },
+  "radiomics_features": null,
+  "ml_results": {
+   "primary_label": "no_lesion_detected",
+   "tb_probability": null,
+   "risk_level": "low",
+   "classifier": null,
+   "decision_basis": "No lesion region above the minimum area threshold was segmented; radiomics and the TB classifier were not run."
+  }
+ }
+}
