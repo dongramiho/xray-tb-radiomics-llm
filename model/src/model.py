@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import tensorflow as tf
 
 
@@ -22,7 +20,7 @@ def _conv_block(inputs: tf.Tensor, filters: int, use_batchnorm: bool = True) -> 
 
 
 def build_unet(
-    input_shape: Tuple[int, int, int],
+    input_shape: tuple[int, int, int],
     base_filters: int = 32,
     depth: int = 4,
     use_batchnorm: bool = True,

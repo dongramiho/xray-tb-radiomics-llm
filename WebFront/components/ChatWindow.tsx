@@ -55,6 +55,24 @@ export default function ChatWindow({ messages, activePatient }: ChatWindowProps)
                   />
                 )}
 
+                {msg.analysis?.overlay_url && (
+                  <figure className={styles.analysisFigure}>
+                    <img
+                      src={msg.analysis.overlay_url}
+                      className={styles.messageImage}
+                      alt="U-Net 병변 분할 오버레이"
+                    />
+                    <figcaption className={styles.analysisCaption}>
+                      {msg.analysis.ml_results?.primary_label ?? "분석"}
+                      {msg.analysis.ml_results?.tb_probability != null &&
+                        ` · TB 확률 ${(msg.analysis.ml_results.tb_probability * 100).toFixed(0)}%`}
+                      {msg.analysis.segmentation?.zones?.length
+                        ? ` · ${msg.analysis.segmentation.zones.join(", ")}`
+                        : ""}
+                    </figcaption>
+                  </figure>
+                )}
+
                 <p className={styles.messageText}>{msg.content}</p>
               </div>
             </div>

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -50,12 +50,12 @@ def build_labels(df: pd.DataFrame) -> pd.Series:
     return df["image_id"].str.contains("_1").astype(int)
 
 
-def feature_columns(df: pd.DataFrame) -> List[str]:
+def feature_columns(df: pd.DataFrame) -> list[str]:
     drop = {"image_id", "image_path", "mask_path", "label"}
     return [c for c in df.columns if c not in drop]
 
 
-def group_importance(feature_importance: pd.Series) -> Dict[str, float]:
+def group_importance(feature_importance: pd.Series) -> dict[str, float]:
     groups = ["firstorder", "glcm", "glrlm", "glszm", "gldm", "ngtdm", "shape2D"]
     scores = {}
     for g in groups:
@@ -111,7 +111,7 @@ def main() -> None:
         .to_dict(orient="records")
     )
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "dataset": {
             "file": str(args.features_csv),
             "samples": int(len(df)),

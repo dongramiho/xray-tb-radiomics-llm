@@ -1,0 +1,226 @@
+{
+  "created_at": "2026-11-02T08:42:19+00:00",
+  "package_version": "0.2.0",
+  "sklearn_version": "1.9.1",
+  "python_version": "3.11.15",
+  "features_csv": "/Users/socraai/Desktop/service/model/outputs/evaluation/pipeline_features.csv",
+  "dataset": {
+    "samples": 617,
+    "tb": 333,
+    "normal": 284,
+    "features": 102,
+    "note": "Shenzhen CXR (NLM): rows are images where the U-Net segmented a region >= 0.1% of the image; TB rows = lesion regions on TB images, normal rows = false-positive regions on normal images. The U-Net itself was trained on ~330 of the TB images, so TB-side masks are in-sample."
+  },
+  "cross_validation": {
+    "logreg": {
+      "folds": 5,
+      "roc_auc_mean": 0.8866,
+      "roc_auc_std": 0.0251,
+      "roc_auc_oof": 0.8876,
+      "average_precision_oof": 0.9138,
+      "brier_oof": 0.1327,
+      "sensitivity": 0.7748,
+      "specificity": 0.8486,
+      "confusion": {
+        "tp": 258,
+        "fp": 43,
+        "tn": 241,
+        "fn": 75
+      },
+      "threshold": 0.5
+    },
+    "rf": {
+      "folds": 5,
+      "roc_auc_mean": 0.8914,
+      "roc_auc_std": 0.025,
+      "roc_auc_oof": 0.8898,
+      "average_precision_oof": 0.9133,
+      "brier_oof": 0.1325,
+      "sensitivity": 0.8258,
+      "specificity": 0.8345,
+      "confusion": {
+        "tp": 275,
+        "fp": 47,
+        "tn": 237,
+        "fn": 58
+      },
+      "threshold": 0.5
+    }
+  },
+  "end_to_end_image_level": {
+    "n_images": 662,
+    "roc_auc": 0.8965,
+    "average_precision": 0.9096,
+    "sensitivity": 0.8185,
+    "specificity": 0.8558,
+    "accuracy": 0.8369,
+    "confusion": {
+      "tp": 275,
+      "fp": 47,
+      "tn": 279,
+      "fn": 61
+    },
+    "undetected_images": 45
+  },
+  "selected_model": "rf",
+  "feature_importance": {
+    "original_shape2D_Elongation": 0.01022148957012892,
+    "original_shape2D_MajorAxisLength": 0.007876010766610564,
+    "original_shape2D_MaximumDiameter": 0.008245437693568837,
+    "original_shape2D_MeshSurface": 0.027359092596699875,
+    "original_shape2D_MinorAxisLength": 0.007459799788065495,
+    "original_shape2D_Perimeter": 0.029135398318676342,
+    "original_shape2D_PerimeterSurfaceRatio": 0.007010383269703134,
+    "original_shape2D_PixelSurface": 0.025497127227344117,
+    "original_shape2D_Sphericity": 0.004606383879325566,
+    "original_firstorder_10Percentile": 0.004601211005915876,
+    "original_firstorder_90Percentile": 0.005240593203518524,
+    "original_firstorder_Energy": 0.011987234277152,
+    "original_firstorder_Entropy": 0.018454877640594582,
+    "original_firstorder_InterquartileRange": 0.002890742750071429,
+    "original_firstorder_Kurtosis": 0.005825772413165873,
+    "original_firstorder_Maximum": 0.008442924547705752,
+    "original_firstorder_MeanAbsoluteDeviation": 0.00702409110043367,
+    "original_firstorder_Mean": 0.0047736562234965045,
+    "original_firstorder_Median": 0.0044322096113523285,
+    "original_firstorder_Minimum": 0.0044863467463549574,
+    "original_firstorder_Range": 0.019402114329575792,
+    "original_firstorder_RobustMeanAbsoluteDeviation": 0.006229544065337368,
+    "original_firstorder_RootMeanSquared": 0.004636794106727332,
+    "original_firstorder_Skewness": 0.003570329873604392,
+    "original_firstorder_TotalEnergy": 0.015915059128166376,
+    "original_firstorder_Uniformity": 0.016343995900964442,
+    "original_firstorder_Variance": 0.012520755643212724,
+    "original_glcm_Autocorrelation": 0.004761745472368116,
+    "original_glcm_ClusterProminence": 0.023450853677996413,
+    "original_glcm_ClusterShade": 0.005720956368607475,
+    "original_glcm_ClusterTendency": 0.014523578015604145,
+    "original_glcm_Contrast": 0.003026902720629755,
+    "original_glcm_Correlation": 0.01623325916560334,
+    "original_glcm_DifferenceAverage": 0.003815290639325887,
+    "original_glcm_DifferenceEntropy": 0.0032202610020348114,
+    "original_glcm_DifferenceVariance": 0.003854054471698678,
+    "original_glcm_Id": 0.0037543080883258527,
+    "original_glcm_Idm": 0.0035075269272351315,
+    "original_glcm_Idmn": 0.006404264300366035,
+    "original_glcm_Idn": 0.003448885461406731,
+    "original_glcm_Imc1": 0.004781371832301349,
+    "original_glcm_Imc2": 0.02163895438391393,
+    "original_glcm_InverseVariance": 0.004934330851738227,
+    "original_glcm_JointAverage": 0.0033843872136671764,
+    "original_glcm_JointEnergy": 0.017258925292771714,
+    "original_glcm_JointEntropy": 0.015886690090654066,
+    "original_glcm_MCC": 0.007682645705902614,
+    "original_glcm_MaximumProbability": 0.008892399844605917,
+    "original_glcm_SumAverage": 0.004114247211336535,
+    "original_glcm_SumEntropy": 0.02350682262909841,
+    "original_glcm_SumSquares": 0.017164888399859888,
+    "original_glrlm_GrayLevelNonUniformity": 0.032421440503943674,
+    "original_glrlm_GrayLevelNonUniformityNormalized": 0.010089213656758954,
+    "original_glrlm_GrayLevelVariance": 0.005371106906403441,
+    "original_glrlm_HighGrayLevelRunEmphasis": 0.005885184109286433,
+    "original_glrlm_LongRunEmphasis": 0.004107485522536266,
+    "original_glrlm_LongRunHighGrayLevelEmphasis": 0.003905856975408571,
+    "original_glrlm_LongRunLowGrayLevelEmphasis": 0.004162417314738045,
+    "original_glrlm_LowGrayLevelRunEmphasis": 0.004257971579182895,
+    "original_glrlm_RunEntropy": 0.004561663918502394,
+    "original_glrlm_RunLengthNonUniformity": 0.05213877448280915,
+    "original_glrlm_RunLengthNonUniformityNormalized": 0.004179344698429046,
+    "original_glrlm_RunPercentage": 0.003515297571852301,
+    "original_glrlm_RunVariance": 0.00467142498471821,
+    "original_glrlm_ShortRunEmphasis": 0.0038782027496918198,
+    "original_glrlm_ShortRunHighGrayLevelEmphasis": 0.006426075303732041,
+    "original_glrlm_ShortRunLowGrayLevelEmphasis": 0.005305136360127793,
+    "original_glszm_GrayLevelNonUniformity": 0.04166766416854576,
+    "original_glszm_GrayLevelNonUniformityNormalized": 0.008606744198925816,
+    "original_glszm_GrayLevelVariance": 0.009129458104666132,
+    "original_glszm_HighGrayLevelZoneEmphasis": 0.004692309811327661,
+    "original_glszm_LargeAreaEmphasis": 0.004004911751678147,
+    "original_glszm_LargeAreaHighGrayLevelEmphasis": 0.004820250123045742,
+    "original_glszm_LargeAreaLowGrayLevelEmphasis": 0.004307669218225692,
+    "original_glszm_LowGrayLevelZoneEmphasis": 0.005300165624935864,
+    "original_glszm_SizeZoneNonUniformity": 0.061342518251047085,
+    "original_glszm_SizeZoneNonUniformityNormalized": 0.00536214434552573,
+    "original_glszm_SmallAreaEmphasis": 0.005973220824836514,
+    "original_glszm_SmallAreaHighGrayLevelEmphasis": 0.005068762267924997,
+    "original_glszm_SmallAreaLowGrayLevelEmphasis": 0.0049991425059257,
+    "original_glszm_ZoneEntropy": 0.02530466244396865,
+    "original_glszm_ZonePercentage": 0.0041306256976210666,
+    "original_glszm_ZoneVariance": 0.005282506278522867,
+    "original_gldm_DependenceEntropy": 0.008529942145720358,
+    "original_gldm_DependenceNonUniformity": 0.007179706941801179,
+    "original_gldm_DependenceNonUniformityNormalized": 0.003483542360858954,
+    "original_gldm_DependenceVariance": 0.006816624103514547,
+    "original_gldm_GrayLevelNonUniformity": 0.0070222442796762695,
+    "original_gldm_GrayLevelVariance": 0.011532953081680555,
+    "original_gldm_HighGrayLevelEmphasis": 0.005436551367950888,
+    "original_gldm_LargeDependenceEmphasis": 0.003802602325901787,
+    "original_gldm_LargeDependenceHighGrayLevelEmphasis": 0.003830240844392747,
+    "original_gldm_LargeDependenceLowGrayLevelEmphasis": 0.0037408337370876668,
+    "original_gldm_LowGrayLevelEmphasis": 0.0035699896732448305,
+    "original_gldm_SmallDependenceEmphasis": 0.003385840485365196,
+    "original_gldm_SmallDependenceHighGrayLevelEmphasis": 0.004562024262724776,
+    "original_gldm_SmallDependenceLowGrayLevelEmphasis": 0.004647892865062576,
+    "original_ngtdm_Busyness": 0.007345714823644225,
+    "original_ngtdm_Coarseness": 0.02144213360902063,
+    "original_ngtdm_Complexity": 0.018296755927120073,
+    "original_ngtdm_Contrast": 0.00509068691680041,
+    "original_ngtdm_Strength": 0.00625744254906296
+  },
+  "feature_importance_top10": [
+    {
+      "feature": "original_glszm_SizeZoneNonUniformity",
+      "importance": 0.061343
+    },
+    {
+      "feature": "original_glrlm_RunLengthNonUniformity",
+      "importance": 0.052139
+    },
+    {
+      "feature": "original_glszm_GrayLevelNonUniformity",
+      "importance": 0.041668
+    },
+    {
+      "feature": "original_glrlm_GrayLevelNonUniformity",
+      "importance": 0.032421
+    },
+    {
+      "feature": "original_shape2D_Perimeter",
+      "importance": 0.029135
+    },
+    {
+      "feature": "original_shape2D_MeshSurface",
+      "importance": 0.027359
+    },
+    {
+      "feature": "original_shape2D_PixelSurface",
+      "importance": 0.025497
+    },
+    {
+      "feature": "original_glszm_ZoneEntropy",
+      "importance": 0.025305
+    },
+    {
+      "feature": "original_glcm_SumEntropy",
+      "importance": 0.023507
+    },
+    {
+      "feature": "original_glcm_ClusterProminence",
+      "importance": 0.023451
+    }
+  ],
+  "group_importance": {
+    "shape2D": 0.1274,
+    "firstorder": 0.1568,
+    "glcm": 0.225,
+    "glrlm": 0.1549,
+    "glszm": 0.2,
+    "gldm": 0.0775,
+    "ngtdm": 0.0584
+  },
+  "limitations": [
+    "Single-centre public dataset (Shenzhen); external validation required.",
+    "Image-level labels only; lesion masks come from the U-Net, not radiologist annotations.",
+    "Research prototype, not for clinical decision-making."
+  ]
+}

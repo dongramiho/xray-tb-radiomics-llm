@@ -3,20 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
-import sys
 
 import numpy as np
 import tensorflow as tf
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from config import CHECKPOINT_DIR  # noqa: E402
-from src.dataset import build_datasets
-from src.losses import SMOOTH, dice_coefficient
-from src.model_loader import load_model_compat
+from cxr_tb.config import CHECKPOINT_DIR
+from cxr_tb.src.dataset import build_datasets
+from cxr_tb.src.losses import SMOOTH, dice_coefficient
+from cxr_tb.src.model_loader import load_model_compat
 
 
 def iou_score(y_true: tf.Tensor, y_pred: tf.Tensor, threshold: float = 0.5) -> tf.Tensor:
@@ -29,7 +22,7 @@ def iou_score(y_true: tf.Tensor, y_pred: tf.Tensor, threshold: float = 0.5) -> t
     return tf.reduce_mean(iou)
 
 
-def evaluate_model(model_path: Path) -> Tuple[float, float, float]:
+def evaluate_model(model_path: Path) -> tuple[float, float, float]:
     """Load dataset/model, run predictions, and compute summary metrics."""
     datasets = build_datasets()
     test_ds = datasets["test"]

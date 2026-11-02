@@ -4,27 +4,21 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-import sys
 
 import tensorflow as tf
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from config import (  # noqa: E402  (import after path fix)
+from cxr_tb.config import (
+    CHANNELS,
     CHECKPOINT_DIR,
     IMAGE_HEIGHT,
     IMAGE_WIDTH,
-    CHANNELS,
     LEARNING_RATE,
     LOG_DIR,
     NUM_EPOCHS,
     OUTPUT_DIR,
 )
-from src.dataset import build_datasets
-from src.losses import binary_crossentropy_dice_loss, dice_coefficient
-from src.model import build_unet
+from cxr_tb.src.dataset import build_datasets
+from cxr_tb.src.losses import binary_crossentropy_dice_loss, dice_coefficient
+from cxr_tb.src.model import build_unet
 
 
 def prepare_output_dirs() -> None:

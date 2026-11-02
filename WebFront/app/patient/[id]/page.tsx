@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation"; // 👈 [수정 1] params 가져오는 훅 변경
 import ChatWindow from "@/components/ChatWindow";
 import InputBar from "@/components/InputBar";
-import Sidebar from "@/components/Sidebar"; // 사이드바도 같이 보여주기 위해 추가
-import { fetchMessages, fetchPatientDetails, sendMessage, fetchPatients } from "@/utils/api";
+import { fetchMessages, fetchPatientDetails, sendMessage } from "@/utils/api";
 import { Patient, Message } from "@/types";
 import styles from "../../page.module.css"; // 스타일 재사용 (경로 확인 필요)
 
@@ -15,20 +14,16 @@ export default function PatientChatPage() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [patient, setPatient] = useState<Patient | null>(null);
-  const [patientsList, setPatientsList] = useState<Patient[]>([]); // 사이드바용 목록
   const [loading, setLoading] = useState(true);
 
   // 1. 초기 데이터 로드 (환자 목록 + 현재 환자 상세 + 메시지)
   useEffect(() => {
     if (id) {
-      setLoading(true);
       Promise.all([
-        fetchPatients(),          // 사이드바용 전체 목록
         fetchMessages(id),        // 대화 내용
         fetchPatientDetails(id)   // 현재 환자 정보
       ])
-      .then(([allPatients, msgs, pInfo]) => {
-        setPatientsList(allPatients);
+      .then(([msgs, pInfo]) => {
         setMessages(msgs);
         setPatient(pInfo);
       })
