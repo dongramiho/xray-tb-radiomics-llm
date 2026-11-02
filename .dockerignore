@@ -1,0 +1,20 @@
+# Build context is the repository root; keep it small.
+.git
+**/.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+WebBack/static
+WebBack/*.db
+WebBack/.env
+WebFront/.env*
+model/data
+model/outputs/checkpoints
+model/outputs/predictions
+model/outputs/logs
+docs/samples
+*.pdf

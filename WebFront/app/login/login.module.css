@@ -1,0 +1,140 @@
+/* mainContent(flex column) 안을 꽉 채우고 카드를 중앙 정렬 */
+.page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.12), transparent 55%),
+    #09090b;
+}
+
+.card {
+  width: 100%;
+  max-width: 24rem;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 1rem;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 45%);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.brandIcon {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #fafafa;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #a1a1aa;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.input {
+  width: 100%;
+  background: #27272a;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  color: white;
+  border: 1px solid #3f3f46;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input::placeholder {
+  color: #71717a;
+}
+
+.input:focus {
+  border-color: #2563eb;
+}
+
+.input:disabled {
+  opacity: 0.6;
+}
+
+.error {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.submitButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.8rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: #3b82f6;
+}
+
+.submitButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hint {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #71717a;
+}

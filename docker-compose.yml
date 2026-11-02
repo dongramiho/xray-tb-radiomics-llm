@@ -1,0 +1,59 @@
+# Local production-like stack: PostgreSQL + FastAPI backend (TensorFlow CPU) + Next.js frontend.
+#   cp WebBack/.env.example WebBack/.env   # set OPENAI_API_KEY, JWT_SECRET, SEED_DOCTOR_PASSWORD
+#   docker compose up --build
+# Frontend: http://localhost:3000   API: http://localhost:8000/docs
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: xray
+      POSTGRES_USER: xray
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xray}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xray -d xray"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: WebBack/Dockerfile
+    env_file:
+      - path: WebBack/.env
+        required: false
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+psycopg://xray:${POSTGRES_PASSWORD:-xray}@db:5432/xray
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      STATIC_DIR: /app/WebBack/static
+      SEGMENTATION_MODEL_PATH: /app/model/outputs/checkpoints/best_model.h5
+      CLASSIFIER_PATH: /app/model/outputs/classifier/tb_classifier.joblib
+      LOG_JSON: "true"
+      AUTO_MIGRATE: "false"
+    volumes:
+      - backend-static:/app/WebBack/static
+      - ./model/outputs/checkpoints:/app/model/outputs/checkpoints
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: WebFront
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  backend-static:

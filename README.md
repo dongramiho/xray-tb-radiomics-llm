@@ -8,6 +8,8 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4.1-412991?logo=openai&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&logoColor=white)
 
 <p align="center">
   <img src="docs/samples/overlay_1.png" width="45%" alt="U-Net 병변 분할 결과 오버레이 1" />
@@ -25,7 +27,7 @@
 | **출력** | 병변 오버레이, 폐야 구역·면적 통계, TB 확률과 위험도, 구조화 JSON 리포트, 한국어 임상의용 요약 |
 | **실데이터 성능** | Shenzhen 662장 종단 ROC-AUC **0.897**, 민감도 81.9%, 특이도 85.6% ([상세](docs/evaluation.md)) |
 | **지연** | 업로드 → 분할 → Radiomics → 분류까지 **0.3–0.5초** (CPU), 이후 LLM 2회 호출 |
-| **스택** | TensorFlow 2.15 U-Net · PyRadiomics · scikit-learn · FastAPI · SQLAlchemy · Next.js 16 · OpenAI |
+| **스택** | TensorFlow 2.15 U-Net · PyRadiomics · scikit-learn · FastAPI · SQLAlchemy/Alembic · PostgreSQL · Next.js 16 · OpenAI · Docker Compose · GitHub Actions |
 
 ## 왜 이렇게 만들었나
 
@@ -89,7 +91,21 @@ flowchart LR
 
 ## 빠른 시작
 
-사전 준비: Python 3.11, Node.js 20+, OpenAI API 키. (키가 없으면 `LLM_BACKEND=fake` 로 UI 까지 동작합니다.)
+### Docker Compose (권장)
+
+PostgreSQL + 백엔드(TensorFlow CPU) + 프론트엔드를 한 번에 띄웁니다.
+
+```bash
+cp WebBack/.env.example WebBack/.env    # OPENAI_API_KEY, JWT_SECRET, SEED_DOCTOR_PASSWORD 설정
+scripts/download_models.sh              # U-Net 가중치 (GitHub Releases, 89MB) → model/outputs/checkpoints/
+docker compose up --build               # 프론트 http://localhost:3000, API http://localhost:8000/docs
+```
+
+백엔드 컨테이너는 시작 시 가중치가 없으면 내려받고, `alembic upgrade head` 로 스키마를 맞춘 뒤 기동합니다. 로그인 계정은 `.env` 의 `SEED_DOCTOR_EMAIL` / `SEED_DOCTOR_PASSWORD` (기본 `doctor@test.com` / `changeme`, production 에서는 기본값이면 기동을 거부).
+
+### 로컬 개발
+
+사전 준비: Python 3.11, Node.js 20+, OpenAI API 키. (키가 없으면 `LLM_BACKEND=fake` 로 UI 까지 동작합니다.) `make setup` 으로 아래 1~3 을 한 번에 할 수 있습니다.
 
 ### 1. 모델 가중치
 
@@ -113,7 +129,7 @@ cp .env.example .env                # OPENAI_API_KEY 입력
 uvicorn main:app --reload --port 8000
 ```
 
-`http://127.0.0.1:8000/docs` 에서 Swagger UI, `/health` 에서 로드된 모델과 교차검증 지표를 확인할 수 있습니다.
+`http://127.0.0.1:8000/docs` 에서 Swagger UI, `/health` 에서 로드된 모델과 교차검증 지표를 확인할 수 있습니다. 스키마는 Alembic 으로 관리합니다 (`alembic upgrade head`; 개발용 SQLite 는 기동 시 자동 생성).
 
 ### 3. 프론트엔드
 
@@ -127,19 +143,24 @@ npm install && npm run dev          # http://localhost:3000
 ### 4. 테스트
 
 ```bash
-cd WebBack && pytest                # 17 tests, fake 백엔드 (TensorFlow/OpenAI 불필요)
-cd WebFront && npm run lint && npx tsc --noEmit
+make test                           # backend pytest (fake 백엔드, TensorFlow/OpenAI 불필요) + frontend lint/tsc
 ```
+
+GitHub Actions(`.github/workflows/ci.yml`)가 PR 마다 같은 검사와 Alembic 마이그레이션 적용, Docker 이미지 빌드를 수행합니다.
 
 ## API
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| `GET` | `/health` | 상태, 추론/LLM 백엔드, 분류기 메타데이터 |
+| `GET` | `/health` | 상태, 추론/LLM 백엔드, 분류기 메타데이터 (인증 불필요) |
+| `POST` | `/auth/login` | 이메일·비밀번호 → JWT (`Authorization: Bearer`). 임상의 계정은 운영자가 발급, 자가 가입 없음 |
+| `GET` | `/auth/me` | 현재 사용자 |
 | `POST` | `/patients/register` | 환자 등록 (이름+생년월일 중복 시 기존 반환) |
 | `GET` | `/patients` · `/patients/{id}` | 환자 목록 · 상세 |
 | `GET` | `/patients/{id}/messages` | 대화 이력 (어시스턴트 메시지에 `analysis` 포함) |
 | `POST` | `/analyze` | `patient_id`, `text`, `file` multipart. 이미지가 있으면 전체 파이프라인 + LLM 리포트, 없으면 최근 리포트를 컨텍스트로 한 후속 답변 |
+
+환자 데이터는 담당 의사 계정에 귀속되며 다른 계정에서는 보이지 않습니다. 업로드는 PNG/JPEG 실제 디코딩 검증과 크기 제한(기본 20MB), `/analyze` 는 IP 당 속도 제한(기본 30/분), 모든 응답에 `X-Request-ID` 가 붙고 접근 로그에는 환자 식별 정보가 남지 않습니다.
 
 `/analyze` 응답 예 (요약):
 
@@ -187,7 +208,7 @@ cd WebFront && npm run lint && npx tsc --noEmit
 - [x] `/analyze` 실시간 추론 (U-Net → Radiomics → 분류기 → LLM), 고정값 데모 제거
 - [x] 합성 정상군 제거, 실제 정상 영상으로 교차검증 · 종단 지표 · 모델 카드
 - [x] 설정 외부화(pydantic-settings), fake 백엔드, pytest
-- [ ] Docker Compose · GitHub Actions CI · PostgreSQL · 인증 · 업로드/CORS 제한
+- [x] Docker Compose · GitHub Actions CI · PostgreSQL + Alembic · JWT 인증 · 업로드/CORS/속도 제한 · 요청 ID 로깅
 - [ ] LLM: structured outputs · 재시도/폴백 · 토큰·지연 추적 · 지식베이스 RAG · 평가셋
 - [ ] UI: 오버레이·특징 표·리포트 뷰어 · 스트리밍 · 의사 피드백 · 세션 관리
 - [ ] 외부 데이터셋 검증 (Montgomery, TBX11K)

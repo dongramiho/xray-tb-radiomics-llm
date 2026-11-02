@@ -1,4 +1,4 @@
-"""FastAPI entrypoint: patient registry, consultation chat, and the X-ray analysis endpoint.
+"""FastAPI entrypoint: authentication, patient registry, consultation chat, and the X-ray analysis endpoint.
 
 Request flow for ``POST /analyze`` with an image:
     upload -> U-Net segmentation -> lesion summary -> radiomics -> TB classifier   (inference service)
@@ -8,7 +8,10 @@ Request flow for ``POST /analyze`` with an image:
 
 from __future__ import annotations
 
+import io
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -19,17 +22,21 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+import auth
 import database
 import DBTable
 import llm_report
 from inference import AnalysisArtifacts, InferenceService, build_inference_service, new_image_id
+from logging_config import configure_logging
 from schemas import PatientCreate
 from settings import Settings, get_settings
 
 logger = logging.getLogger("webback")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 ALLOWED_IMAGE_FORMATS = {"PNG", "JPEG"}
 
@@ -40,7 +47,9 @@ ALLOWED_IMAGE_FORMATS = {"PNG", "JPEG"}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
-    DBTable.Base.metadata.create_all(bind=database.engine)
+    settings.validate_for_environment()
+    if settings.auto_migrate:
+        database.run_migrations()
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     settings.results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -49,42 +58,61 @@ async def lifespan(app: FastAPI):
     if not hasattr(app.state, "llm"):
         app.state.llm = llm_report.build_chat_client(settings)
     app.state.kb_text = llm_report.load_kb_text(settings.kb_dir)
+    auth.seed_doctor(settings)
     logger.info(
-        "ready: inference=%s llm=%s report_model=%s summary_model=%s",
+        "ready: env=%s inference=%s llm=%s report_model=%s summary_model=%s",
+        settings.environment,
         app.state.inference.name,
         settings.llm_backend,
         settings.report_model,
         settings.summary_model,
     )
-    seed_default_doctor()
     yield
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
+    configure_logging(json_logs=settings.log_json)
+    app = FastAPI(title=settings.app_name, version="0.3.0", lifespan=lifespan)
     app.state.settings = settings
     settings.static_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
+
+    limiter = Limiter(key_func=get_remote_address, enabled=settings.rate_limit_enabled)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
     )
-    register_routes(app)
+
+    @app.middleware("http")
+    async def request_context(request: Request, call_next):
+        """Attach a request id, time the request, and log one access line (no patient data in the line)."""
+        request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+        request.state.request_id = request_id
+        started = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - started) * 1000
+        response.headers["X-Request-ID"] = request_id
+        if not request.url.path.startswith("/static"):
+            logger.info(
+                "%s %s -> %s (%.0f ms)",
+                request.method,
+                request.url.path,
+                response.status_code,
+                duration_ms,
+                extra={"request_id": request_id, "status": response.status_code, "duration_ms": round(duration_ms)},
+            )
+        return response
+
+    register_routes(app, limiter)
     return app
-
-
-def seed_default_doctor() -> None:
-    db = database.SessionLocal()
-    try:
-        if not db.query(DBTable.User).first():
-            db.add(DBTable.User(email="doctor@test.com", full_name="Dr. Kim", hashed_password="dummy"))
-            db.commit()
-    finally:
-        db.close()
 
 
 # ============================================================ helpers
@@ -130,13 +158,13 @@ def message_to_dict(msg: DBTable.Message, settings: Settings) -> dict[str, Any]:
     return payload
 
 
-def validate_and_store_upload(upload: UploadFile, contents: bytes, settings: Settings) -> str:
+def validate_and_store_upload(contents: bytes, settings: Settings) -> str:
     """Validate the upload is a real PNG/JPEG under the size limit; return the path relative to static."""
     limit = settings.max_upload_mb * 1024 * 1024
     if len(contents) > limit:
         raise HTTPException(status_code=413, detail=f"Image exceeds {settings.max_upload_mb} MB")
     try:
-        with Image.open(_bytes_io(contents)) as img:
+        with Image.open(io.BytesIO(contents)) as img:
             img_format = (img.format or "").upper()
             img.verify()
     except (UnidentifiedImageError, OSError) as err:
@@ -152,12 +180,6 @@ def validate_and_store_upload(upload: UploadFile, contents: bytes, settings: Set
     return relative
 
 
-def _bytes_io(data: bytes):
-    import io
-
-    return io.BytesIO(data)
-
-
 def latest_report_for_session(db: Session, session_id: int) -> dict[str, Any] | None:
     row = (
         db.query(DBTable.DiagnosisResult)
@@ -169,10 +191,19 @@ def latest_report_for_session(db: Session, session_id: int) -> dict[str, Any] | 
     return row.report_json if row else None
 
 
+def get_patient_or_404(db: Session, patient_id: int, user: DBTable.User) -> DBTable.Patient:
+    patient = (
+        db.query(DBTable.Patient).filter(DBTable.Patient.id == patient_id, DBTable.Patient.user_id == user.id).first()
+    )
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return patient
+
+
 # ============================================================ routes
 
 
-def register_routes(app: FastAPI) -> None:
+def register_routes(app: FastAPI, limiter: Limiter) -> None:
     @app.get("/")
     def root():
         return {"message": "Radiomics CDS API", "docs": "/docs"}
@@ -188,33 +219,60 @@ def register_routes(app: FastAPI) -> None:
             "models": request.app.state.inference.model_metadata(),
         }
 
+    # ---------------------------------------------------------------- auth
+
+    @app.post("/auth/login", response_model=auth.TokenResponse)
+    @limiter.limit("10/minute")
+    def login(request: Request, body: auth.LoginRequest, db: Session = Depends(get_db)):
+        settings: Settings = request.app.state.settings
+        user = auth.authenticate(db, body.email, body.password)
+        if user is None:
+            raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
+        return auth.TokenResponse(
+            access_token=auth.create_access_token(user, settings),
+            user=auth.UserOut(id=user.id, email=user.email, full_name=user.full_name),
+        )
+
+    @app.get("/auth/me", response_model=auth.UserOut)
+    def me(current_user: auth.CurrentUser):
+        return auth.UserOut(id=current_user.id, email=current_user.email, full_name=current_user.full_name)
+
     # ---------------------------------------------------------------- patients
 
     @app.post("/patients/register")
-    def register_patient(patient: PatientCreate, db: Session = Depends(get_db)):
+    def register_patient(patient: PatientCreate, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
         existing = (
             db.query(DBTable.Patient)
-            .filter(DBTable.Patient.name == patient.name, DBTable.Patient.birthDate == patient.birthDate)
+            .filter(
+                DBTable.Patient.user_id == current_user.id,
+                DBTable.Patient.name == patient.name,
+                DBTable.Patient.birthDate == patient.birthDate,
+            )
             .first()
         )
         if existing:
             return {"status": "found", "message": "이미 등록된 환자입니다.", "data": existing}
 
-        new_patient = DBTable.Patient(name=patient.name, birthDate=patient.birthDate, gender=patient.gender, user_id=1)
+        new_patient = DBTable.Patient(
+            name=patient.name, birthDate=patient.birthDate, gender=patient.gender, user_id=current_user.id
+        )
         db.add(new_patient)
         db.commit()
         db.refresh(new_patient)
         return {"status": "created", "message": "환자가 등록되었습니다.", "data": new_patient}
 
     @app.get("/patients")
-    def get_patients(db: Session = Depends(get_db)):
-        return db.query(DBTable.Patient).order_by(DBTable.Patient.created_at.desc()).all()
+    def get_patients(current_user: auth.CurrentUser, db: Session = Depends(get_db)):
+        return (
+            db.query(DBTable.Patient)
+            .filter(DBTable.Patient.user_id == current_user.id)
+            .order_by(DBTable.Patient.created_at.desc())
+            .all()
+        )
 
     @app.get("/patients/{patient_id}")
-    def get_patient(patient_id: int, db: Session = Depends(get_db)):
-        patient = db.query(DBTable.Patient).filter(DBTable.Patient.id == patient_id).first()
-        if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
+    def get_patient(patient_id: int, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
+        patient = get_patient_or_404(db, patient_id, current_user)
         return {
             "id": patient.id,
             "name": patient.name,
@@ -224,8 +282,9 @@ def register_routes(app: FastAPI) -> None:
         }
 
     @app.get("/patients/{patient_id}/messages")
-    def get_messages(patient_id: int, request: Request, db: Session = Depends(get_db)):
+    def get_messages(patient_id: int, request: Request, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
         settings: Settings = request.app.state.settings
+        get_patient_or_404(db, patient_id, current_user)
         sessions = db.query(DBTable.ChatSession).filter(DBTable.ChatSession.patient_id == patient_id).all()
         msgs: list[dict[str, Any]] = [message_to_dict(m, settings) for s in sessions for m in s.messages]
         msgs.sort(key=lambda x: x["created_at"] or "")
@@ -234,8 +293,10 @@ def register_routes(app: FastAPI) -> None:
     # ---------------------------------------------------------------- analysis
 
     @app.post("/analyze")
+    @limiter.limit(lambda: app.state.settings.rate_limit_analyze)
     async def analyze(
         request: Request,
+        current_user: auth.CurrentUser,
         patient_id: int = Form(...),
         text: str = Form(""),
         file: UploadFile | None = File(None),
@@ -248,9 +309,7 @@ def register_routes(app: FastAPI) -> None:
         if not text and file is None:
             raise HTTPException(status_code=400, detail="Provide a message, an image, or both")
 
-        patient = db.query(DBTable.Patient).filter(DBTable.Patient.id == patient_id).first()
-        if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
+        get_patient_or_404(db, patient_id, current_user)
 
         session = (
             db.query(DBTable.ChatSession)
@@ -270,7 +329,7 @@ def register_routes(app: FastAPI) -> None:
 
         if file is not None:
             contents = await file.read()
-            image_rel = validate_and_store_upload(file, contents, settings)
+            image_rel = validate_and_store_upload(contents, settings)
             image_id = Path(image_rel).stem
             artifacts = await run_in_threadpool(inference.analyze, settings.static_dir / image_rel, image_id)
             report = await run_in_threadpool(
@@ -327,6 +386,7 @@ def register_routes(app: FastAPI) -> None:
             session.id,
             bool(image_rel),
             artifacts.ml_results.get("primary_label") if artifacts else None,
+            extra={"request_id": getattr(request.state, "request_id", None), "user_id": current_user.id},
         )
         return message_to_dict(ai_msg, settings)
 

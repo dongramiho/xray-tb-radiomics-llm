@@ -25,8 +25,23 @@ class Settings(BaseSettings):
     public_base_url: str = Field(default="http://127.0.0.1:8000", description="URL clients use to reach this API")
     cors_origins: list[str] = Field(default=["http://localhost:3000", "http://127.0.0.1:3000"])
 
+    # --- auth ----------------------------------------------------------------------------
+    jwt_secret: str = Field(default="dev-only-change-me", description="HS256 signing key; set a long random value")
+    access_token_expire_minutes: int = 60 * 12
+    seed_doctor_email: str = Field(default="doctor@test.com", description="Operator-provisioned clinician login")
+    seed_doctor_password: str = Field(default="changeme")
+    seed_doctor_name: str = Field(default="Dr. Kim")
+
+    # --- request handling ----------------------------------------------------------------
+    rate_limit_analyze: str = Field(default="30/minute", description="slowapi limit string for POST /analyze")
+    rate_limit_enabled: bool = True
+    log_json: bool = Field(default=False, description="Emit one JSON object per log line (container friendly)")
+
     # --- storage -------------------------------------------------------------------------
     database_url: str = Field(default=f"sqlite:///{BACKEND_DIR / 'xray_app.db'}")
+    auto_migrate: bool = Field(
+        default=True, description="Apply Alembic migrations at startup (disable when the entrypoint does it)"
+    )
     static_dir: Path = Field(default=BACKEND_DIR / "static")
     max_upload_mb: int = 20
 
@@ -41,6 +56,20 @@ class Settings(BaseSettings):
     report_model: str = Field(default="gpt-4.1", description="Stage 1: structured clinical report")
     summary_model: str = Field(default="gpt-4.1-mini", description="Stage 2: clinician-facing summary")
     kb_dir: Path = Field(default=BACKEND_DIR / "documents")
+
+    def validate_for_environment(self) -> None:
+        """Refuse obviously unsafe production configuration early (at startup, not at first request)."""
+        if self.environment != "production":
+            return
+        problems = []
+        if self.jwt_secret == "dev-only-change-me" or len(self.jwt_secret) < 32:
+            problems.append("JWT_SECRET must be a random string of at least 32 characters")
+        if "*" in self.cors_origins:
+            problems.append("CORS_ORIGINS must not contain '*'")
+        if self.llm_backend == "fake" or self.inference_backend == "fake":
+            problems.append("fake backends are not allowed in production")
+        if problems:
+            raise RuntimeError("Unsafe production settings: " + "; ".join(problems))
 
     @property
     def upload_dir(self) -> Path:
