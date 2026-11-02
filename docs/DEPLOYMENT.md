@@ -39,7 +39,7 @@
 
 | 파일 | 크기 | 위치 | 배포 방법 |
 | --- | --- | --- | --- |
-| `best_model.h5` (U-Net) | 89MB | `model/outputs/checkpoints/` | GitHub Release `models-v1` 자산. `scripts/download_models.sh` 또는 컨테이너 엔트리포인트가 내려받음 |
+| `best_model.h5` (U-Net) | 89MB | `model/outputs/checkpoints/` | GitHub Release `models-v1` 자산. `scripts/download_models.sh` 또는 컨테이너 엔트리포인트가 내려받음. 레포가 private 인 동안은 `GITHUB_TOKEN`(repo 읽기) 또는 `gh` 로그인이 필요 |
 | `tb_classifier.joblib` | 1.2MB | `model/outputs/classifier/` | git 에 포함, 이미지에 복사됨 |
 
 가중치를 새로 학습하면 Release 태그를 올리고 `MODEL_RELEASE_TAG` 를 바꿉니다. 분류기는 `python -m cxr_tb.src.train_classifier` 로 재생성해 커밋합니다 (scikit-learn 버전 고정 필요).

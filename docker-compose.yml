@@ -35,6 +35,7 @@ services:
       CLASSIFIER_PATH: /app/model/outputs/classifier/tb_classifier.joblib
       LOG_JSON: "true"
       AUTO_MIGRATE: "false"
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}   # only needed to fetch weights while the repository is private
     volumes:
       - backend-static:/app/WebBack/static
       - ./model/outputs/checkpoints:/app/model/outputs/checkpoints
