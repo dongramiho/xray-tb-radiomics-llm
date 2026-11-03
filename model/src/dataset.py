@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
 
 import pandas as pd
 import tensorflow as tf
 import tensorflow_addons as tfa
-
-from config import (
+from cxr_tb.config import (
     BATCH_SIZE,
     CHANNELS,
     CSV_PATH,
@@ -78,14 +76,14 @@ def _decode_mask(path: tf.Tensor) -> tf.Tensor:
     return mask
 
 
-def _resize_pair(image: tf.Tensor, mask: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+def _resize_pair(image: tf.Tensor, mask: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
     """Resize image and mask to the configured spatial size."""
     image = tf.image.resize(image, (IMAGE_HEIGHT, IMAGE_WIDTH), method=tf.image.ResizeMethod.BILINEAR)
     mask = tf.image.resize(mask, (IMAGE_HEIGHT, IMAGE_WIDTH), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
     return image, mask
 
 
-def _augment(image: tf.Tensor, mask: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+def _augment(image: tf.Tensor, mask: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
     """Apply simple spatial and intensity augmentations."""
     flip_cond = tf.random.uniform(shape=[]) > 0.5
     image = tf.cond(flip_cond, lambda: tf.image.flip_left_right(image), lambda: image)
@@ -100,7 +98,7 @@ def _augment(image: tf.Tensor, mask: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
     return image, mask
 
 
-def _load_example(image_path: tf.Tensor, mask_path: tf.Tensor, augment: bool) -> Tuple[tf.Tensor, tf.Tensor]:
+def _load_example(image_path: tf.Tensor, mask_path: tf.Tensor, augment: bool) -> tuple[tf.Tensor, tf.Tensor]:
     """Load, preprocess, and optionally augment a single sample."""
     image = _decode_image(image_path)
     mask = _decode_mask(mask_path)
@@ -112,11 +110,15 @@ def _load_example(image_path: tf.Tensor, mask_path: tf.Tensor, augment: bool) ->
 
 def dataframe_to_dataset(df: pd.DataFrame, augment: bool, shuffle: bool) -> tf.data.Dataset:
     """Convert a dataframe split into a tf.data pipeline."""
-    paths_ds = tf.data.Dataset.from_tensor_slices((df["image_path"].astype(str).values, df["mask_path"].astype(str).values))
+    paths_ds = tf.data.Dataset.from_tensor_slices(
+        (df["image_path"].astype(str).values, df["mask_path"].astype(str).values)
+    )
     if shuffle:
-        paths_ds = paths_ds.shuffle(buffer_size=min(SHUFFLE_BUFFER_SIZE, len(df)), seed=RANDOM_SEED, reshuffle_each_iteration=True)
+        paths_ds = paths_ds.shuffle(
+            buffer_size=min(SHUFFLE_BUFFER_SIZE, len(df)), seed=RANDOM_SEED, reshuffle_each_iteration=True
+        )
 
-    def _load_map(image_path: tf.Tensor, mask_path: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    def _load_map(image_path: tf.Tensor, mask_path: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
         return _load_example(image_path, mask_path, augment=augment)
 
     dataset = paths_ds.map(_load_map, num_parallel_calls=tf.data.AUTOTUNE)
@@ -125,7 +127,7 @@ def dataframe_to_dataset(df: pd.DataFrame, augment: bool, shuffle: bool) -> tf.d
     return dataset
 
 
-def build_datasets() -> Dict[str, tf.data.Dataset]:
+def build_datasets() -> dict[str, tf.data.Dataset]:
     """Prepare train/validation/test datasets based on the configured CSV."""
     df = load_dataframe()
     splits = split_dataframe(df)

@@ -62,3 +62,14 @@
 *   **Radiomics 통합**: PyRadiomics 연동 및 특징 추출 파이프라인 완성.
 *   **리포팅 시스템**: 머신러닝 기반 분류기 및 JSON 리포트 생성기(`radiomics_report.py`) 추가.
 *   **문서화**: 초보자를 위한 가이드(README, MODEL_ARCH) 대폭 보강 완료.
+
+---
+
+## 2026-11 파이프라인 정리 (포트폴리오 버전)
+
+*   **패키지화**: `sys.path` 조작을 제거하고 `cxr_tb` 로 설치 가능하게 변경 (`pip install -e ".[inference]"`). 모든 스크립트는 `python -m cxr_tb.src.<name>`.
+*   **서빙/학습 공용 파이프라인** `src/pipeline.py` 추가. 전처리는 학습 시 `tf.image.resize`(bilinear, 안티앨리어싱 없음)와 동일하게 NumPy 로 재현 — PIL 리사이즈를 쓰면 마스크 IoU 가 떨어지는 것을 확인(0329_1 케이스에서 병변이 사라짐).
+*   **빈 마스크 게이트**: 면적 0.1% 미만이면 `no_lesion_detected`. Radiomics 는 빈 ROI 에서 정의되지 않으므로 분류기를 돌리지 않는다.
+*   **Synthetic normal 제거**: 분류기는 Shenzhen 실제 정상 영상에서 U-Net 이 잡은 위양성 영역 vs TB 영상의 병변 영역으로 학습·교차검증 (`train_classifier.py`). 종전 ROC-AUC 1.0 은 합성 정상군 때문이었음.
+*   **PyRadiomics 반환값**: 일부 특징이 0-차원 `numpy.ndarray` 로 와서 `np.generic` 필터에 걸러지던 버그 수정 (102개 전부 추출되도록).
+*   제거: `batch_infer.py`, `radiomics_classify.py`(중복), 합성 데이터 CSV 사본들.

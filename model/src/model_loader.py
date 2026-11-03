@@ -5,8 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import tensorflow as tf
-
-from src.losses import binary_crossentropy_dice_loss, dice_coefficient
+from cxr_tb.src.losses import binary_crossentropy_dice_loss, dice_coefficient
 
 
 def load_model_compat(model_path: Path) -> tf.keras.Model:

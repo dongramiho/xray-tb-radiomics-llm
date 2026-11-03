@@ -1,7 +1,18 @@
-fastapi
-uvicorn
-sqlalchemy
-pydantic
-python-multipart
-openai
-pillow
+# Web API
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.33
+sqlalchemy==2.1.6
+pydantic==2.14.2
+pydantic-settings==2.16.2
+pillow==13.0.0
+openai==3.42.1
+
+# The model pipeline package (cxr_tb: TensorFlow 2.15, PyRadiomics, SimpleITK) is installed separately
+# because PyRadiomics is built from source:  pip install "numpy<2" versioneer
+#                                             pip install --no-build-isolation -e "../model[inference]"
+
+# Dev / test
+pytest==9.2.0
+httpx==0.28.1
+ruff==0.17.3

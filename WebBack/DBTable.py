@@ -1,77 +1,82 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, JSON, Boolean
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+"""ORM models: doctors, patients, chat sessions, messages, and per-image diagnosis results."""
+
 from datetime import datetime
 
-Base = declarative_base()
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 
-# 1. 사용자 (의사)
+from database import Base
+
+
 class User(Base):
+    """A clinician account."""
+
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     full_name = Column(String)
-    
+
     patients = relationship("Patient", back_populates="doctor")
 
-# 2. 환자
+
 class Patient(Base):
     __tablename__ = "patients"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id")) # 담당 의사
+    user_id = Column(Integer, ForeignKey("users.id"))  # attending doctor
     name = Column(String, index=True)
-    birthDate = Column(String) # YYYY-MM-DD
-    gender = Column(String)     # M/F
-    medical_history = Column(Text, nullable=True) # 기저질환 등
+    birthDate = Column(String)  # YYYY-MM-DD
+    gender = Column(String)  # M / F
+    medical_history = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
-    
+
     doctor = relationship("User", back_populates="patients")
     sessions = relationship("ChatSession", back_populates="patient")
 
-# 3. 채팅 세션 (사이드바 목록)
+
 class ChatSession(Base):
+    """One consultation thread for a patient (sidebar entry)."""
+
     __tablename__ = "chat_sessions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"))
-    title = Column(String) # 예: "24년 1차 흉부 촬영"
+    title = Column(String)
     created_at = Column(DateTime, default=datetime.now)
-    
-    patient = relationship("Patient", back_populates="sessions")
-    messages = relationship("Message", back_populates="session")
 
-# 4. 메시지 (대화 내용)
+    patient = relationship("Patient", back_populates="sessions")
+    messages = relationship("Message", back_populates="session", order_by="Message.created_at")
+
+
 class Message(Base):
     __tablename__ = "messages"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("chat_sessions.id"))
-    role = Column(String) # 'user' (의사) vs 'assistant' (AI)
-    content = Column(Text) # 채팅 텍스트
-    image_path = Column(String, nullable=True) # 업로드된 이미지 경로
+    role = Column(String)  # 'user' (clinician) or 'assistant' (AI)
+    content = Column(Text)
+    image_path = Column(String, nullable=True)  # path relative to the static dir, e.g. uploads/<id>.png
     created_at = Column(DateTime, default=datetime.now)
-    
+
     session = relationship("ChatSession", back_populates="messages")
     diagnosis = relationship("DiagnosisResult", back_populates="message", uselist=False)
 
-# 5. 진단 결과 (AI 분석 데이터)
+
 class DiagnosisResult(Base):
+    """Pipeline + LLM output attached to an assistant message that analysed an image."""
+
     __tablename__ = "diagnosis_results"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id")) # 어떤 메시지의 결과인지
-    
-    # 모델의 원본 예측 결과 (JSON으로 저장하면 유연함)
-    # 예: {"Pneumonia": 0.88, "Edema": 0.12}
-    model_raw_json = Column(JSON) 
-    
-    # GPT가 해석한 텍스트
-    gpt_interpretation = Column(Text)
-    
-    # 의사의 피드백 (정답 여부) -> 추후 모델 개선용
-    doctor_feedback = Column(Boolean, nullable=True) 
-    
+    message_id = Column(Integer, ForeignKey("messages.id"))
+
+    model_raw_json = Column(JSON)  # case JSON: segmentation summary, radiomics features, ml_results
+    report_json = Column(JSON, nullable=True)  # stage-1 structured LLM report
+    gpt_interpretation = Column(Text)  # stage-2 clinician-facing summary
+    overlay_path = Column(String, nullable=True)  # relative to static dir
+    mask_path = Column(String, nullable=True)
+    doctor_feedback = Column(Boolean, nullable=True)  # clinician agreement, for later model improvement
+
     message = relationship("Message", back_populates="diagnosis")

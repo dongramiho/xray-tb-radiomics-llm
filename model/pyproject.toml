@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cxr-tb-model"
+version = "0.2.0"
+description = "Chest X-ray TB pipeline: U-Net lesion segmentation, radiomics, and classification"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy<2",
+  "pandas",
+  "pillow",
+  "scipy",
+  "scikit-learn",
+  "joblib",
+]
+
+[project.optional-dependencies]
+# Inference (serving): segmentation model + radiomics feature extraction
+inference = [
+  "tensorflow==2.15.*",
+  "SimpleITK",
+  "pyradiomics @ git+https://github.com/AIM-Harvard/pyradiomics.git@v3.1.0",
+]
+# Training the U-Net additionally needs tensorflow-addons (rotation augmentation) and matplotlib
+train = [
+  "tensorflow==2.15.*",
+  "tensorflow-addons==0.22.*",
+  "matplotlib",
+]
+
+[tool.setuptools]
+packages = ["cxr_tb", "cxr_tb.src"]
+
+[tool.setuptools.package-dir]
+"cxr_tb" = "."
+"cxr_tb.src" = "src"

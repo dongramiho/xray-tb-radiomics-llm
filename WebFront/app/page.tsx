@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import styles from "./page.module.css";
 import { UserPlus } from "lucide-react";
 
-import Sidebar from "@/components/Sidebar";
 import InputBar from "@/components/InputBar";
 import ChatWindow from "@/components/ChatWindow";
 import PatientModal from "@/components/PatientModal";
@@ -56,9 +55,9 @@ export default function Home() {
       setActivePatientId(pData.id);
       setIsModalOpen(false);
       alert(result.message);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      alert(e.message || "환자 등록 실패");
+      alert(e instanceof Error ? e.message : "환자 등록 실패");
     }
   };
 

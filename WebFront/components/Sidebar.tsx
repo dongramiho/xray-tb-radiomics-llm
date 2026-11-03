@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import styles from "./Sidebar.module.css";
@@ -20,16 +20,16 @@ export default function Sidebar() {
 
   const activeId = params?.id ? Number(params.id) : null;
 
-  // 초기 데이터 로드
-  useEffect(() => {
-    loadPatients();
-  }, []);
-
-  const loadPatients = () => {
+  const loadPatients = useCallback(() => {
     fetchPatients()
       .then(setPatients)
       .catch(console.error);
-  };
+  }, []);
+
+  // 초기 데이터 로드
+  useEffect(() => {
+    loadPatients();
+  }, [loadPatients]);
 
   return (
     <>

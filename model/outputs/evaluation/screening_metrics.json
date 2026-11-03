@@ -1,0 +1,47 @@
+{
+  "n_images": 662,
+  "n_tb": 336,
+  "n_normal": 326,
+  "detection_threshold_area_fraction": 0.001,
+  "at_deployed_threshold": {
+    "tp": 333,
+    "fp": 284,
+    "tn": 42,
+    "fn": 3,
+    "sensitivity": 0.9911,
+    "specificity": 0.1288,
+    "precision": 0.5397,
+    "accuracy": 0.5665
+  },
+  "score_mask_area_fraction": {
+    "roc_auc": 0.8684,
+    "average_precision": 0.8873,
+    "youden_threshold": 0.018101,
+    "youden_sensitivity": 0.7202,
+    "youden_specificity": 0.8834
+  },
+  "score_max_probability": {
+    "roc_auc": 0.8676,
+    "average_precision": 0.8859,
+    "youden_threshold": 0.8704,
+    "youden_sensitivity": 0.7917,
+    "youden_specificity": 0.8006
+  },
+  "mask_area_fraction_percentiles": {
+    "normal": {
+      "10": 0.00046,
+      "25": 0.00292,
+      "50": 0.0071,
+      "75": 0.0135,
+      "90": 0.0191
+    },
+    "tb": {
+      "10": 0.00846,
+      "25": 0.01646,
+      "50": 0.0283,
+      "75": 0.04648,
+      "90": 0.07185
+    }
+  },
+  "source_csv": "/Users/socraai/Desktop/service/model/outputs/evaluation/pipeline_features.csv"
+}

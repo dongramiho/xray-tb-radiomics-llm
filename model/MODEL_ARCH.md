@@ -85,14 +85,20 @@ graph TD
 
 ## 4. Phase 3: Classification (Machine Learning)
 
-추출된 수백 개의 Radiomics 특징(숫자)을 입력으로 받아 최종 진단을 내립니다.
+추출된 102개 Radiomics 특징(숫자)을 입력으로 받아 영역이 결핵 병변인지 판정합니다.
 
-### 4.1 모델 선택: Random Forest
-딥러닝 대신 전통적인 머신러닝을 사용하는 이유는 **설명력(Explainability)** 때문입니다.
-*   **Feature Importance**: 어떤 특징(예: "병변의 거칠기")이 결핵 판정에 결정적이었는지 알 수 있습니다.
-*   **데이터 효율성**: 수백~수천 장 정도의 적은 의료 데이터에서는 거대 딥러닝 모델보다 Random Forest가 과적합(Overfitting) 없이 안정적인 성능을 냅니다.
+### 4.1 게이트 (No-lesion gate)
+U-Net 마스크 면적이 영상의 0.1% 미만이면 Radiomics 와 분류기를 돌리지 않고 `no_lesion_detected` 로 끝냅니다. 빈 ROI 에서는 Radiomics 가 정의되지 않기 때문입니다.
 
-### 4.2 학습 과정
-1.  **Synthetic Normals**: 정상 데이터(병변 없음)와 결핵 데이터(병변 있음)의 비율을 맞추기 위해, 정상 이미지의 폐 영역에서 가상의 정상 패치를 추출하여 대조군으로 사용합니다.
-2.  **Stratified Split**: 학습/테스트 데이터를 나눌 때 환자 비율을 일정하게 유지합니다.
-3.  **Ensemble**: 여러 개의 결정 트리(Decision Tree) 투표를 통해 가장 합리적인 결과를 도출합니다.
+### 4.2 모델 선택: Random Forest
+*   **설명력**: feature importance 로 어떤 특징(예: GLSZM SizeZoneNonUniformity)이 판정을 좌우했는지 보여 줄 수 있습니다.
+*   **데이터 효율성**: 수백 장 규모에서는 거대 모델보다 안정적입니다.
+*   Logistic Regression 도 함께 교차검증하며, `--model auto` 는 OOF ROC-AUC 가 높은 쪽을 내보냅니다 (현재 RF, 차이는 0.003).
+
+### 4.3 학습 데이터 구성 (synthetic normal 제거)
+1.  **TB 행**: TB 영상에서 U-Net 이 분할한 병변 영역의 Radiomics.
+2.  **정상 행**: 정상 영상에서 U-Net 이 만든 **위양성 영역**의 Radiomics. 즉 분류기는 "진짜 병변 vs 위양성 영역"을 구분하는 FP-reduction 단계입니다.
+3.  **교차검증**: 5-fold stratified (환자 그룹 컬럼이 있으면 StratifiedGroupKFold). 수치는 [../docs/evaluation.md](../docs/evaluation.md).
+
+### 4.4 서빙과의 일관성
+학습 특징과 서빙 특징은 같은 `src/pipeline.py` 코드로 계산됩니다. 리사이즈는 학습 시 `tf.image.resize`(bilinear, no antialias)를 NumPy 로 재현한 것이고, Radiomics 는 512 해상도의 영상·마스크를 SimpleITK 이미지로 직접 넘깁니다. 분류기 번들(joblib)은 estimator 와 함께 `feature_names`·`threshold`·학습 메타데이터(교차검증 지표, 특징 중요도, 한계)를 담고 있어, 서빙 시 LLM 리포트에 그대로 전달됩니다.

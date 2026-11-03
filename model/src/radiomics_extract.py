@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,8 @@ except ImportError as exc:  # pragma: no cover - dependency hint for users
         "  python3 -m pip install pyradiomics SimpleITK\n"
     ) from exc
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from cxr_tb.config import MODEL_ROOT as PROJECT_ROOT
+
 DEFAULT_PRED_MASK_DIR = PROJECT_ROOT / "outputs" / "predictions" / "batch" / "masks"
 DEFAULT_OUTPUT_CSV = PROJECT_ROOT / "outputs" / "radiomics" / "features.csv"
 
@@ -115,7 +116,7 @@ def pick_mask(
     mask_column: str,
     mask_source: str,
     pred_mask_dir: Path,
-) -> Optional[Path]:
+) -> Path | None:
     """Choose predicted or ground-truth mask based on availability and user preference."""
     image_path = Path(row[image_column])
     pred_mask = pred_mask_dir / f"{image_path.stem}_mask.png"
@@ -133,9 +134,9 @@ def pick_mask(
     return None
 
 
-def sanitize_features(result: Dict[str, Any]) -> Dict[str, Any]:
+def sanitize_features(result: dict[str, Any]) -> dict[str, Any]:
     """Drop diagnostic keys and cast numpy scalars to native Python types."""
-    clean: Dict[str, Any] = {}
+    clean: dict[str, Any] = {}
     for key, value in result.items():
         if key.startswith("diagnostics_"):
             continue
@@ -148,7 +149,9 @@ def sanitize_features(result: Dict[str, Any]) -> Dict[str, Any]:
 def ensure_binary_mask(mask_path: Path) -> Path:
     """Force mask values to 0/1 so PyRadiomics interprets labels correctly."""
     mask_img = sitk.ReadImage(str(mask_path))
-    binary = sitk.BinaryThreshold(mask_img, lowerThreshold=0.5, upperThreshold=sys.maxsize, insideValue=1, outsideValue=0)
+    binary = sitk.BinaryThreshold(
+        mask_img, lowerThreshold=0.5, upperThreshold=sys.maxsize, insideValue=1, outsideValue=0
+    )
     tmp_path = mask_path.parent / f"{mask_path.stem}_bin{mask_path.suffix}"
     sitk.WriteImage(binary, str(tmp_path))
     return tmp_path
@@ -173,8 +176,8 @@ def extract_features(
     mask_source: str,
     pred_mask_dir: Path,
     label: int,
-) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
         image_path = Path(row[image_column])
         if not image_path.exists():
