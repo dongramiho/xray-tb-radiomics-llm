@@ -72,7 +72,8 @@ def test_streaming_follow_up_without_image(client):
     with client.stream("POST", "/analyze/stream", data={"patient_id": pid, "text": "추가 검사는?"}) as res:
         events = parse_sse(res.read().decode("utf-8"))
     names = [name for name, _ in events]
-    assert names[0] == "status" and events[0][1]["stage"] == "answering"
+    stages = [data["stage"] for name, data in events if name == "status"]
+    assert names[0] == "status" and "answering" in stages
     assert "analysis" not in names and names[-1] == "done"
     assert "analysis" not in events[-1][1]["message"]
 

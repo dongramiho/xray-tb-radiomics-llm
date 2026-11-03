@@ -525,3 +525,16 @@
   color: #71717a;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- 카드 아래 설명 영역: 의사용 / 환자용 전환 ---- */
+.explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.patientNote {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #a1a1aa;
+}

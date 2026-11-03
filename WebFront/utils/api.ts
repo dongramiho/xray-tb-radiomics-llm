@@ -1,5 +1,7 @@
 import {
   Patient,
+  PatientDoctor,
+  PatientListParams,
   Message,
   AuthUser,
   LoginResponse,
@@ -8,6 +10,18 @@ import {
   StreamHandlers,
   StreamStatus,
   Analysis,
+  Visit,
+  VisitInput,
+  Timeline,
+  PatientLink,
+  CreateLinkInput,
+  LinkAccess,
+  ShareView,
+  ShareAskResult,
+  DashboardOverview,
+  AdminUser,
+  CreateAdminUserInput,
+  PatchAdminUserInput,
 } from "@/types/index";
 import { clearAuth, getToken, setStoredUser, setToken } from "@/utils/auth";
 
@@ -59,7 +73,16 @@ export function resolveMediaUrl(url: string): string {
   return url.startsWith("/") ? `${BASE_URL}${url}` : url;
 }
 
-type RawPatient = { id: number; name: string; birthDate: string; gender: string; created_at?: string; lastVisit?: string };
+type RawPatient = {
+  id: number;
+  name: string;
+  birthDate: string;
+  gender: string;
+  created_at?: string;
+  lastVisit?: string;
+  patient_code?: string | null;
+  doctor?: PatientDoctor | null;
+};
 
 function toPatient(p: RawPatient): Patient {
   return {
@@ -68,8 +91,12 @@ function toPatient(p: RawPatient): Patient {
     birthDate: p.birthDate,
     gender: p.gender,
     lastVisit: p.lastVisit ?? (p.created_at ? new Date(p.created_at).toLocaleDateString() : ""),
+    patient_code: p.patient_code ?? null,
+    doctor: p.doctor ?? null,
   };
 }
+
+const JSON_HEADERS = { "Content-Type": "application/json" };
 
 // 0-1. 로그인 → 토큰 + 사용자 정보 저장
 export async function login(email: string, password: string): Promise<LoginResponse> {
@@ -103,9 +130,14 @@ export function logout(): void {
   clearAuth();
 }
 
-// 1. 환자 목록
-export async function fetchPatients(): Promise<Patient[]> {
-  const res = await apiFetch("/patients");
+// 1. 환자 목록 (q: 이름 / 환자번호 검색, gender 필터, scope: 관리자의 병원 단위 조회)
+export async function fetchPatients(params: PatientListParams = {}): Promise<Patient[]> {
+  const search = new URLSearchParams();
+  if (params.q?.trim()) search.set("q", params.q.trim());
+  if (params.gender) search.set("gender", params.gender);
+  if (params.scope) search.set("scope", params.scope);
+  const query = search.toString();
+  const res = await apiFetch(`/patients${query ? `?${query}` : ""}`);
   if (!res.ok) throw new Error(await parseError(res, "환자 목록을 불러오지 못했습니다."));
   const data: RawPatient[] = await res.json();
   return data.map(toPatient);
@@ -169,12 +201,15 @@ export async function fetchSessions(patientId: number): Promise<Session[]> {
   return await res.json();
 }
 
-// 7. 새 상담 세션 생성
-export async function createSession(patientId: number, title?: string): Promise<Session> {
+// 7. 새 상담 세션 생성 (visitId: 방문 기록에 연결, 선택)
+export async function createSession(patientId: number, title?: string, visitId?: number): Promise<Session> {
+  const body: { title?: string; visit_id?: number } = {};
+  if (title) body.title = title;
+  if (visitId != null) body.visit_id = visitId;
   const res = await apiFetch(`/patients/${patientId}/sessions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(title ? { title } : {}),
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await parseError(res, "새 상담을 만들지 못했습니다."));
   return await res.json();
@@ -236,9 +271,15 @@ function dispatchSseEvent(ev: SseEvent, handlers: StreamHandlers): boolean {
   const body = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
 
   switch (ev.event) {
-    case "status":
-      handlers.onStatus(body as StreamStatus);
+    case "status": {
+      // Stage names are open-ended (the pipeline keeps adding them); only `message` is rendered.
+      const status: StreamStatus = {
+        stage: typeof body.stage === "string" ? body.stage : "",
+        message: typeof body.message === "string" ? body.message : "",
+      };
+      handlers.onStatus(status);
       return false;
+    }
     case "analysis":
       handlers.onAnalysis(body as unknown as Analysis);
       return false;
@@ -329,4 +370,142 @@ export async function streamAnalysis(
   }
 
   if (!finished) handlers.onError("응답이 완료되기 전에 스트림이 종료되었습니다.");
+}
+
+// ---- 10. 방문 기록 ----
+
+// 방문 목록 (최신순)
+export async function fetchVisits(patientId: number): Promise<Visit[]> {
+  const res = await apiFetch(`/patients/${patientId}/visits`);
+  if (!res.ok) throw new Error(await parseError(res, "방문 기록을 불러오지 못했습니다."));
+  return await res.json();
+}
+
+export async function createVisit(patientId: number, input: VisitInput): Promise<Visit> {
+  const res = await apiFetch(`/patients/${patientId}/visits`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "방문 기록을 추가하지 못했습니다."));
+  return await res.json();
+}
+
+export async function updateVisit(visitId: number, input: VisitInput): Promise<Visit> {
+  const res = await apiFetch(`/visits/${visitId}`, {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "방문 기록을 수정하지 못했습니다."));
+  return await res.json();
+}
+
+// ---- 11. 변화 추이 (분석 결과 타임라인, 오래된 순) ----
+export async function fetchTimeline(patientId: number): Promise<Timeline> {
+  const res = await apiFetch(`/patients/${patientId}/timeline`);
+  if (!res.ok) throw new Error(await parseError(res, "변화 추이를 불러오지 못했습니다."));
+  return await res.json();
+}
+
+// ---- 12. 환자 공유 링크 (의사 측) ----
+
+export async function createLink(patientId: number, input: CreateLinkInput): Promise<PatientLink> {
+  const res = await apiFetch(`/patients/${patientId}/links`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "공유 링크를 만들지 못했습니다."));
+  return await res.json();
+}
+
+export async function fetchLinks(patientId: number): Promise<PatientLink[]> {
+  const res = await apiFetch(`/patients/${patientId}/links`);
+  if (!res.ok) throw new Error(await parseError(res, "공유 링크 목록을 불러오지 못했습니다."));
+  return await res.json();
+}
+
+export async function revokeLink(linkId: number): Promise<PatientLink> {
+  const res = await apiFetch(`/links/${linkId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await parseError(res, "공유 링크를 종료하지 못했습니다."));
+  return await res.json();
+}
+
+export async function fetchLinkAccesses(linkId: number): Promise<LinkAccess[]> {
+  const res = await apiFetch(`/links/${linkId}/accesses`);
+  if (!res.ok) throw new Error(await parseError(res, "접속 기록을 불러오지 못했습니다."));
+  return await res.json();
+}
+
+// ---- 13. 공개 공유 페이지 (환자 측, 토큰 없음) ----
+
+/** Error from the public share endpoints; `status` tells the page which state to show (404 / 410 / 429). */
+export class ShareError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ShareError";
+    this.status = status;
+  }
+}
+
+// Plain fetch on purpose: no bearer token, and a 401 / 410 must never redirect the patient to /login.
+async function shareFetch<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, init);
+  } catch {
+    throw new ShareError(0, "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+  }
+  if (!res.ok) throw new ShareError(res.status, await parseError(res, fallback));
+  return (await res.json()) as T;
+}
+
+export function fetchShare(token: string): Promise<ShareView> {
+  return shareFetch<ShareView>(`/share/${encodeURIComponent(token)}`, { method: "GET" }, "공유 링크를 불러오지 못했습니다.");
+}
+
+export function askShare(token: string, question: string): Promise<ShareAskResult> {
+  return shareFetch<ShareAskResult>(
+    `/share/${encodeURIComponent(token)}/ask`,
+    { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ question }) },
+    "질문을 보내지 못했습니다.",
+  );
+}
+
+// ---- 14. 대시보드 ----
+export async function fetchDashboard(days: number): Promise<DashboardOverview> {
+  const res = await apiFetch(`/dashboard/overview?days=${days}`);
+  if (!res.ok) throw new Error(await parseError(res, "대시보드를 불러오지 못했습니다."));
+  return await res.json();
+}
+
+// ---- 15. 관리자: 계정 관리 (admin 전용, 그 외 403) ----
+
+export async function fetchAdminUsers(): Promise<AdminUser[]> {
+  const res = await apiFetch("/admin/users");
+  if (!res.ok) throw new Error(await parseError(res, "계정 목록을 불러오지 못했습니다."));
+  return await res.json();
+}
+
+export async function createAdminUser(input: CreateAdminUserInput): Promise<AdminUser> {
+  const res = await apiFetch("/admin/users", {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "계정을 만들지 못했습니다."));
+  return await res.json();
+}
+
+export async function patchAdminUser(userId: number, input: PatchAdminUserInput): Promise<AdminUser> {
+  const res = await apiFetch(`/admin/users/${userId}`, {
+    method: "PATCH",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseError(res, "계정을 수정하지 못했습니다."));
+  return await res.json();
 }

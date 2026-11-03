@@ -63,3 +63,36 @@ class RadiomicsReport(BaseModel):
 
 def report_to_dict(report: RadiomicsReport) -> dict:
     return report.model_dump(mode="json")
+
+
+# ------------------------------------------------------------------------------------- chat graph schemas
+
+
+ModerationCategory = Literal["clinical", "general_medical", "off_topic", "harmful", "personal_data"]
+QuestionCategory = Literal["analysis_request", "follow_up", "general_medical", "chit_chat", "out_of_scope"]
+
+
+class ModerationDecision(BaseModel):
+    appropriate: bool = Field(description="True when the message belongs in a clinical decision-support chat")
+    category: ModerationCategory
+    reason: str
+
+
+class QuestionClass(BaseModel):
+    category: QuestionCategory
+    needs_retrieval: bool = Field(description="Whether knowledge-base / literature retrieval would help")
+    search_query: str = Field(description="English PubMed-style query for the question (may be empty)")
+
+
+class ConsistencyCheck(BaseModel):
+    consistent: bool = Field(description="Doctor and patient explanations convey the same risk level and findings")
+    issue: str = Field(description="What differs, empty when consistent")
+
+
+class FollowUpQuestions(BaseModel):
+    doctor: list[str] = Field(description="2-3 follow-up questions a clinician might ask next")
+    patient: list[str] = Field(description="1-2 questions a patient might ask next")
+
+
+class SessionTitle(BaseModel):
+    title: str = Field(description="Short Korean title for the consultation (max 24 chars)")

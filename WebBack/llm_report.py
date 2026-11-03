@@ -17,17 +17,25 @@ from __future__ import annotations
 import json
 import logging
 import random
-import re
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
-
-from pydantic import BaseModel
+from typing import Any
 
 import guardrails
 from kb import HashingEmbedder, KnowledgeBase, OpenAIEmbedder, case_query, format_context
+from llm_clients import (  # noqa: F401  (re-exported for callers and tests)
+    ChatClient,
+    FakeChatClient,
+    GeminiChatClient,
+    LLMError,
+    LLMRouter,
+    OpenAIChatClient,
+    Usage,
+    build_llm_router,
+    is_retryable,
+)
 from llm_pricing import estimate_cost_usd
 from llm_schemas import RadiomicsReport
 from settings import Settings
@@ -39,12 +47,6 @@ KB_FILE_PATTERN = "tb_*.txt"
 
 
 # ------------------------------------------------------------------------------------- telemetry types
-
-
-@dataclass
-class Usage:
-    input_tokens: int = 0
-    output_tokens: int = 0
 
 
 @dataclass
@@ -63,234 +65,28 @@ class LLMTrace:
     error: str | None = None
     guardrail_violations: list[str] = field(default_factory=list)
     regenerated: bool = False
+    cached: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-
-class LLMError(RuntimeError):
-    """Raised when every attempt (including the fallback model) failed."""
-
-
-# ------------------------------------------------------------------------------------- clients
-
-
-class ChatClient(Protocol):
-    name: str
-
-    def complete(
-        self, system: str, user: str, *, model: str, temperature: float, max_tokens: int, timeout: float
-    ) -> tuple[str, Usage]: ...
-
-    def complete_structured(
-        self,
-        system: str,
-        user: str,
-        *,
-        schema: type[BaseModel],
-        model: str,
-        temperature: float,
-        max_tokens: int,
-        timeout: float,
-    ) -> tuple[dict[str, Any], Usage]: ...
-
-    def stream(
-        self,
-        system: str,
-        user: str,
-        *,
-        model: str,
-        temperature: float,
-        max_tokens: int,
-        timeout: float,
-        on_usage: Callable[[Usage], None] | None = None,
-    ) -> Iterator[str]: ...
-
-
-def _usage_from(response: Any) -> Usage:
-    usage = getattr(response, "usage", None)
-    if usage is None:
-        return Usage()
-    return Usage(int(getattr(usage, "prompt_tokens", 0) or 0), int(getattr(usage, "completion_tokens", 0) or 0))
-
-
-class OpenAIChatClient:
-    name = "openai"
-
-    def __init__(self, api_key: str):
-        from openai import OpenAI
-
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY is not set (or set LLM_BACKEND=fake).")
-        self._client = OpenAI(api_key=api_key)
-
-    @staticmethod
-    def _messages(system: str, user: str) -> list[dict[str, str]]:
-        return [{"role": "system", "content": system}, {"role": "user", "content": user}]
-
-    def complete(self, system, user, *, model, temperature, max_tokens, timeout):
-        completion = self._client.chat.completions.create(
-            model=model,
-            messages=self._messages(system, user),
-            temperature=temperature,
-            max_completion_tokens=max_tokens,
-            timeout=timeout,
+    @classmethod
+    def from_usage(
+        cls, stage: str, model: str, usage: Usage | None, latency_ms: float = 0.0, cached: bool = False
+    ) -> LLMTrace:
+        trace = cls(
+            stage=stage, requested_model=model, model=model, attempts=0 if cached else 1, success=True, cached=cached
         )
-        return (completion.choices[0].message.content or ""), _usage_from(completion)
-
-    def complete_structured(self, system, user, *, schema, model, temperature, max_tokens, timeout):
-        completion = self._client.chat.completions.parse(
-            model=model,
-            messages=self._messages(system, user),
-            response_format=schema,
-            temperature=temperature,
-            max_completion_tokens=max_tokens,
-            timeout=timeout,
-        )
-        message = completion.choices[0].message
-        if getattr(message, "refusal", None):
-            raise LLMError(f"model refused: {message.refusal}")
-        parsed = message.parsed
-        if parsed is None:
-            raise LLMError("structured output missing")
-        return parsed.model_dump(mode="json"), _usage_from(completion)
-
-    def stream(self, system, user, *, model, temperature, max_tokens, timeout, on_usage=None):
-        response = self._client.chat.completions.create(
-            model=model,
-            messages=self._messages(system, user),
-            temperature=temperature,
-            max_completion_tokens=max_tokens,
-            timeout=timeout,
-            stream=True,
-            stream_options={"include_usage": True},
-        )
-        for chunk in response:
-            if getattr(chunk, "usage", None) and on_usage is not None:
-                on_usage(_usage_from(chunk))
-            if chunk.choices:
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    yield delta
-
-
-class FakeChatClient:
-    """Offline client: builds a schema-valid report that is consistent with the case JSON in the prompt.
-
-    Used when LLM_BACKEND=fake and in tests; ``calls`` records every request for assertions.
-    """
-
-    name = "fake"
-    CASE_PATTERN = re.compile(r"\[RADIOMICS_CASE_JSON\]\n(.*?)\n\[END_OF_RADIOMICS_CASE_JSON\]", re.S)
-    SUMMARY = (
-        "분석 요약(FAKE): 분할된 영역의 질감이 불균질하고 분류기는 결핵 가능성을 {level} 수준으로 평가했습니다. "
-        "임상 증상과 객담 검사를 함께 고려하시기 바랍니다. 최종 판단은 담당 의사에게 있습니다."
-    )
-
-    def __init__(self, summary_override: str | None = None, structured_override: dict[str, Any] | None = None):
-        self.calls: list[dict[str, Any]] = []
-        self.summary_override = summary_override
-        self.structured_override = structured_override
-
-    def _record(self, kind: str, model: str, user: str) -> None:
-        self.calls.append({"kind": kind, "model": model, "user": user})
-
-    def _case_from_prompt(self, user: str) -> dict[str, Any]:
-        match = self.CASE_PATTERN.search(user)
-        if not match:
-            return {}
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            return {}
-
-    def complete(self, system, user, *, model, temperature, max_tokens, timeout):
-        self._record("complete", model, user)
-        level = "moderate"
-        match = re.search(r'"level":\s*"(low|moderate|high)"', user)
-        if match:
-            level = match.group(1)
-        text = self.summary_override or self.SUMMARY.format(level=level)
-        return text, Usage(input_tokens=max(1, len(user) // 4), output_tokens=max(1, len(text) // 2))
-
-    def complete_structured(self, system, user, *, schema, model, temperature, max_tokens, timeout):
-        self._record("structured", model, user)
-        if self.structured_override is not None:
-            return dict(self.structured_override), Usage(100, 50)
-        case = self._case_from_prompt(user)
-        seg = case.get("segmentation", {}) or {}
-        ml = case.get("ml_results", {}) or {}
-        label = ml.get("primary_label", "tb_suspected")
-        no_lesion = label == "no_lesion_detected"
-        chunk_ids = re.findall(r"^\[(tb_\d+#\d+)\]", user, flags=re.M)
-        evidence = [
-            {
-                "json_key": "ml_results.primary_label",
-                "category": "ml",
-                "role": "tb_risk",
-                "explanation": f"classifier label {label}",
-            },
-            {
-                "json_key": "segmentation.mask_area_fraction",
-                "category": "segmentation",
-                "role": "morphology",
-                "explanation": "segmented area fraction",
-            },
-        ]
-        if chunk_ids:
-            evidence.append(
-                {
-                    "json_key": chunk_ids[0],
-                    "category": "knowledge_base",
-                    "role": "tb_risk",
-                    "explanation": "knowledge-base pattern",
-                }
-            )
-        report = RadiomicsReport.model_validate(
-            {
-                "clinical_overview": "FAKE report: "
-                + ("no lesion region segmented." if no_lesion else "segmented region with heterogeneous texture."),
-                "tb_risk_summary": {"level": ml.get("risk_level", "moderate"), "rationale": "fake rationale"},
-                "lesion_summary": {
-                    "num_regions": 0 if no_lesion else int(seg.get("num_components", 1) or 0),
-                    "zones": [] if no_lesion else list(seg.get("zones", [])),
-                    "area_fraction": None if no_lesion else seg.get("mask_area_fraction"),
-                    "morphology": "n/a" if no_lesion else "irregular",
-                    "texture": "n/a" if no_lesion else "heterogeneous",
-                },
-                "ml_summary": {
-                    "primary_label": label,
-                    "tb_probability": ml.get("tb_probability"),
-                    "model_confidence": "moderate",
-                    "reliability_comment": "fake",
-                },
-                "recommendations_for_clinician": ["Correlate with symptoms and sputum testing."],
-                "supporting_evidence": evidence,
-                "limitations": {
-                    "data_limitations": ["single-centre data"],
-                    "model_limitations": ["in-sample segmentation"],
-                    "usage_restrictions": "research only",
-                },
-            }
-        )
-        return report.model_dump(mode="json"), Usage(input_tokens=max(1, len(user) // 4), output_tokens=400)
-
-    def stream(self, system, user, *, model, temperature, max_tokens, timeout, on_usage=None):
-        text, usage = self.complete(
-            system, user, model=model, temperature=temperature, max_tokens=max_tokens, timeout=timeout
-        )
-        self.calls[-1]["kind"] = "stream"
-        for start in range(0, len(text), 12):
-            yield text[start : start + 12]
-        if on_usage is not None:
-            on_usage(usage)
+        if usage is not None:
+            trace.input_tokens, trace.output_tokens = usage.input_tokens, usage.output_tokens
+            trace.cost_usd = estimate_cost_usd(model, usage.input_tokens, usage.output_tokens)
+        trace.latency_ms = round(latency_ms, 1)
+        return trace
 
 
 def build_chat_client(settings: Settings) -> ChatClient:
-    if settings.llm_backend == "fake":
-        logger.warning("Using FAKE LLM backend; reports and summaries are synthetic.")
-        return FakeChatClient()
-    return OpenAIChatClient(settings.openai_api_key)
+    """The provider router (OpenAI + optional Gemini), or the offline fake client when LLM_BACKEND=fake."""
+    return build_llm_router(settings)
 
 
 def build_knowledge_base(settings: Settings) -> KnowledgeBase:
@@ -303,18 +99,6 @@ def build_knowledge_base(settings: Settings) -> KnowledgeBase:
 
 
 # ------------------------------------------------------------------------------------- resilience
-
-
-def _retryable(exc: BaseException) -> bool:
-    try:
-        import openai
-    except ImportError:  # pragma: no cover
-        return False
-    if isinstance(exc, openai.RateLimitError | openai.APIConnectionError | openai.APITimeoutError):
-        return True
-    if isinstance(exc, openai.APIStatusError):
-        return exc.status_code >= 500
-    return False
 
 
 def call_with_resilience(
@@ -338,7 +122,7 @@ def call_with_resilience(
                 raise
             except Exception as exc:  # noqa: BLE001 - we classify below
                 last_error = exc
-                if not _retryable(exc):
+                if not is_retryable(exc):
                     logger.warning("%s: non-retryable error on %s: %s", stage, model, exc)
                     break
                 if retry < max_retries:

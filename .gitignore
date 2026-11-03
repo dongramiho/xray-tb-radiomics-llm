@@ -42,3 +42,6 @@ WebBack/documents/.kb_index.json
 
 # LLM evaluation outputs
 WebBack/evals/results.json
+
+# LangGraph checkpoints (runtime)
+WebBack/graph_checkpoints.sqlite

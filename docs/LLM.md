@@ -1,6 +1,60 @@
 # LLM 레이어 설계
 
-`WebBack/llm_report.py`, `kb.py`, `llm_schemas.py`, `guardrails.py`, `llm_pricing.py`, `evals/`
+`WebBack/graph/`, `llm_clients.py`, `llm_report.py`, `kb.py`, `llm_schemas.py`, `guardrails.py`, `llm_pricing.py`, `evals/`
+
+## LangGraph 챗 파이프라인 (한 턴)
+
+```mermaid
+flowchart TD
+    S([START]) --> V[validate]
+    V -->|ok| M[moderate<br/>부적절 질문 차단 + 시맨틱 캐시]
+    V -->|error| R[respond]
+    M -->|blocked| R
+    M --> C[classify<br/>analysis / follow_up / general / chit_chat / out_of_scope]
+    C -->|image| A[analyze<br/>U-Net → 게이트 → Radiomics → 분류기]
+    C -->|chit-chat · out of scope| R
+    C -->|question| RT[retrieve]
+    A --> RT
+    RT --> K[retrieve_kb<br/>지식베이스 top-k]
+    RT --> SC[retrieve_similar<br/>유사 케이스 (Shenzhen 617)]
+    RT --> L[retrieve_literature<br/>PubMed E-utilities]
+    K --> MG[merge_retrieval]
+    SC --> MG
+    L --> MG
+    MG -->|analysis| G[generate_report<br/>structured outputs]
+    MG -->|no analysis| AN[answer<br/>근거 포함 답변]
+    G --> E[map_evidence<br/>인용 검증 · 출처 연결]
+    E --> D[explain_doctor<br/>임상의용 · 스트리밍]
+    E --> P[explain_patient<br/>환자용]
+    D --> CP[compare<br/>의사/환자 일관성]
+    P --> CP
+    CP --> SF[safety_check]
+    AN --> SF
+    SF --> EN[enrich<br/>후속 질문 · 세션 제목]
+    EN --> R
+    R --> END([END])
+```
+
+| 노드 | 역할 | LLM 호출 |
+| --- | --- | --- |
+| `validate` | 입력 유무·길이·이미지 존재 | 없음 |
+| `moderate` | 범위 밖/유해/개인정보 요청 차단. 질문 임베딩으로 **시맨틱 캐시**(코사인 ≥ 0.92 면 이전 판정 재사용) | 구조화 1회 (캐시 적중 시 0) |
+| `classify` | 질문 유형과 검색 필요 여부, PubMed 질의문 | 구조화 1회 |
+| `analyze` | 기존 파이프라인 (`cxr_tb`) | 없음 |
+| `retrieve_kb` / `retrieve_similar` / `retrieve_literature` | **병렬** super-step. 지식베이스 청크, Radiomics 벡터 최근접 참조 케이스, PubMed 초록 | 임베딩 1회 |
+| `generate_report` | 1차 구조화 리포트 (RAG 청크 + 유사 케이스 + 문헌 메타) | 구조화 1회 (+폴백) |
+| `map_evidence` | 인용 검증, `evidence_sources` 기록, UI 용 `analysis` 이벤트 발행 | 없음 |
+| `explain_doctor` / `explain_patient` | **병렬**. 의사용 요약(스트리밍) · 환자용 설명(쉬운 말, 전문용어·확정 표현 금지) | 각 1회 (+재생성) |
+| `compare` | 두 설명의 위험도·소견 일관성. 불일치 시 환자용 재생성 | 구조화 1회 |
+| `safety_check` | 확정 진단 표현·의사 판단 귀속 검사, 면책 문구 | 없음 |
+| `enrich` | 후속 질문 제안(의사 2–3, 환자 1–2), 첫 분석 시 세션 제목 | 구조화 1–2회 |
+| `respond` | 대상(의사/환자)에 맞는 최종 응답 선택 | 없음 |
+
+체크포인트: 턴마다 `s<세션>-<요청id>` 스레드로 SQLite(`GRAPH_CHECKPOINT_PATH`) 또는 PostgreSQL(`DATABASE_URL`)에 저장되어 각 실행의 상태를 추적·재현할 수 있습니다. 비스트리밍 `/analyze` 는 `graph.invoke`, 스트리밍 `/analyze/stream` 은 `graph.stream(stream_mode="custom")` 으로 노드 상태·토큰 이벤트를 SSE 로 중계합니다. `GET /graph` 가 Mermaid 정의를 돌려줍니다.
+
+### 모델 라우팅과 폴백
+
+`llm_clients.LLMRouter` 가 모델명으로 제공자를 고릅니다(`gemini-*` → Gemini, 그 외 → OpenAI). 발표 설계대로 **GPT 기본 + Gemini 폴백(thinking low)** 으로 쓰려면 `GOOGLE_API_KEY` 와 `FALLBACK_PROVIDER=gemini` 만 설정하면 되고, 키가 없으면 OpenAI 대체 모델로 폴백합니다. `LLM_BACKEND=fake` 는 모든 모델을 오프라인 클라이언트로 보내며, 이 클라이언트는 앱이 쓰는 모든 구조화 스키마에 대해 케이스와 일관된 답을 만듭니다.
 
 ## 왜 2단계인가
 

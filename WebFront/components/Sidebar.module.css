@@ -177,3 +177,92 @@
   border-color: rgba(239, 68, 68, 0.3);
   color: #f87171;
 }
+
+/* 👇 상단 네비게이션 (대시보드) */
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.navLink:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ededed;
+}
+
+.navActive {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(96, 165, 250, 0.4);
+  color: #ffffff;
+}
+
+/* 관리자: 내 환자 / 병원 전체 */
+.scopeToggle {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.6rem;
+}
+
+.scopeButton {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.scopeButton:hover {
+  color: #ededed;
+}
+
+.scopeActive {
+  background: #2563eb;
+  color: white;
+}
+
+.scopeActive:hover {
+  color: white;
+}
+
+.emptyState {
+  margin: 1rem 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #71717a;
+}
+
+.patientCode {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: #71717a;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.roleBadge {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 9999px;
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+  font-size: 0.65rem;
+  font-weight: 600;
+  vertical-align: middle;
+}

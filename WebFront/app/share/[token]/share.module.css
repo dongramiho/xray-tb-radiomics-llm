@@ -1,0 +1,415 @@
+/* 환자용 공개 공유 페이지: 로그인 / 사이드바 없음, 단일 컬럼, 모바일 우선 */
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1rem 3rem;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.12), transparent 55%),
+    #09090b;
+  color: #e4e4e7;
+}
+
+.container {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+
+.brandIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #fafafa;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #a1a1aa;
+}
+
+.subtitle strong {
+  color: #e4e4e7;
+  font-weight: 600;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.1rem 1.2rem;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.75rem;
+}
+
+.overlay {
+  width: 100%;
+  max-height: 28rem;
+  object-fit: contain;
+  background: #09090b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+}
+
+.summary {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #e4e4e7;
+}
+
+.note {
+  margin: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid #27272a;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #a1a1aa;
+}
+
+.muted {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #71717a;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fafafa;
+}
+
+/* ---- Q&A ---- */
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.messageRow {
+  display: flex;
+}
+
+.patientRow {
+  justify-content: flex-end;
+}
+
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 88%;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.9rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.assistantBubble {
+  border-top-left-radius: 0.25rem;
+  background: #27272a;
+  color: #e4e4e7;
+}
+
+.patientBubble {
+  border-top-right-radius: 0.25rem;
+  background: rgba(20, 184, 166, 0.12);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  color: #e4e4e7;
+}
+
+.bubbleLabel {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #a1a1aa;
+}
+
+.patientBubble .bubbleLabel {
+  color: #5eead4;
+}
+
+.bubbleText {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.bubbleTime {
+  align-self: flex-end;
+  font-size: 0.66rem;
+  color: #71717a;
+  font-variant-numeric: tabular-nums;
+}
+
+.pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #a1a1aa;
+}
+
+.pulseDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #60a5fa;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+/* ---- 추천 질문 ---- */
+.followUps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.followUpLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: #71717a;
+}
+
+.followUpChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.followUpChip {
+  max-width: 100%;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #3f3f46;
+  border-radius: 9999px;
+  background: rgba(39, 39, 42, 0.6);
+  color: #d4d4d8;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.followUpChip:hover:not(:disabled) {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(59, 130, 246, 0.12);
+  color: white;
+}
+
+.followUpChip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- 질문 입력 ---- */
+.askForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.askRow {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.35rem 0.35rem 0.35rem 0.9rem;
+  background: #27272a;
+  border: 1px solid #3f3f46;
+  border-radius: 1.25rem;
+  transition: border-color 0.2s;
+}
+
+.askRow:focus-within {
+  border-color: #2563eb;
+}
+
+.askInput {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  font-size: 0.95rem;
+}
+
+.askInput::placeholder {
+  color: #71717a;
+}
+
+.askInput:disabled {
+  opacity: 0.6;
+}
+
+.askButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 9999px;
+  background: #2563eb;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.askButton:hover:not(:disabled) {
+  background: #3b82f6;
+}
+
+.askButton:disabled {
+  background: #3f3f46;
+  color: #71717a;
+  cursor: default;
+}
+
+.askMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.9rem;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+}
+
+.remaining {
+  color: #a1a1aa;
+}
+
+.remainingZero {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.askError {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #f87171;
+}
+
+/* ---- 만료 안내 ---- */
+.expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.78rem;
+  color: #71717a;
+}
+
+/* ---- 로딩 / 만료 / 없음 상태 ---- */
+.centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 4rem 0;
+  font-size: 0.9rem;
+  color: #a1a1aa;
+}
+
+.stateCard {
+  align-items: center;
+  text-align: center;
+  padding: 2rem 1.25rem;
+}
+
+.stateIcon {
+  color: #fbbf24;
+}
+
+.stateTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fafafa;
+}
+
+.stateBody {
+  margin: 0;
+  max-width: 32rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: #a1a1aa;
+}
+
+.stateDetail {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 1rem 0.75rem 2.5rem;
+  }
+
+  .card {
+    padding: 0.9rem 0.85rem 1rem;
+  }
+
+  .title {
+    font-size: 1.15rem;
+  }
+
+  .bubble {
+    max-width: 95%;
+  }
+}

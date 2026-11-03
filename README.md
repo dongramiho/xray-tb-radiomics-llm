@@ -31,11 +31,12 @@
 | | |
 | --- | --- |
 | **입력** | 정면 흉부 X-ray (PNG/JPEG) + 임상의의 메모, 그리고 후속 질문 |
-| **출력** | 병변 오버레이 · 폐야 구역과 면적 · TB 확률과 위험도 · 상위 기여 특징 · 구조화 JSON 리포트(근거 인용 포함) · 한국어 임상의용 요약(스트리밍) |
+| **출력** | 병변 오버레이 · 폐야 구역과 면적 · TB 확률과 위험도 · 상위 기여 특징 · 구조화 JSON 리포트(근거 인용 포함) · **의사용 요약(스트리밍) + 환자용 설명** · 후속 질문 제안 |
 | **실데이터 성능** | Shenzhen 662장 종단 ROC-AUC **0.897**, 민감도 81.9%, 특이도 85.6% — 합성 데이터 없이, 교차검증으로 ([상세](docs/evaluation.md)) |
 | **지연** | 업로드 → 분할 → Radiomics → 분류 **0.3–0.5초** (CPU), 이후 LLM 2회 호출 (요약은 토큰 스트리밍) |
-| **운영** | JWT 인증 · 환자 데이터 의사별 격리 · PostgreSQL + Alembic · Docker Compose · GitHub Actions CI · 요청 ID 로깅 · LLM 비용/지연 텔레메트리 |
-| **스택** | TensorFlow 2.15 U-Net · PyRadiomics · scikit-learn · FastAPI · SQLAlchemy · Next.js 16 · OpenAI (structured outputs, embeddings) |
+| **운영** | JWT 인증 · 병원 단위 계정(의사/관리자) · 환자 데이터 격리 · PostgreSQL + Alembic · Docker Compose · GitHub Actions CI · 요청 ID 로깅 · LLM 비용/지연 텔레메트리 |
+| **제품 기능** | 방문 기록 타임라인 · 환자 링크 공유(시간/수동/복합 만료, 질문 횟수 제한, 접속·질문 로깅) · 환자용 공개 페이지 · 대시보드/통계(관리자: 의사별 사용 현황) · 환자 검색/필터 |
+| **스택** | TensorFlow 2.15 U-Net · PyRadiomics · scikit-learn · **LangGraph** · FastAPI · SQLAlchemy · Next.js 16 · OpenAI (structured outputs, embeddings) · Gemini 폴백(선택) |
 
 ## 왜 이렇게 만들었나
 
@@ -47,25 +48,30 @@
 | 2. 게이트 + 통계 | 연결 성분 분석 | 면적 비율, 성분 수, 폐야 구역(right/left × upper/middle/lower) |
 | 3. 특징 추출 | PyRadiomics | 102개 정량 특징 (shape2D, first-order, GLCM, GLRLM, GLSZM, GLDM, NGTDM) |
 | 4. 분류 | Random Forest (scikit-learn, 5-fold CV ROC-AUC 0.891) | `tb_probability`, `risk_level`, 상위 기여 특징 |
-| 5. 해석 | OpenAI LLM 2단계 + RAG | ① 구조화 리포트 (gpt-4.1, pydantic 스키마 강제, 지식베이스 청크 인용) → ② 한국어 임상의용 요약 (gpt-4.1-mini, 스트리밍) |
+| 5. 해석 | **LangGraph 파이프라인** (18 노드) + RAG | 검증 → 부적절 질문 차단 → 질문 분류 → 지식베이스·유사 케이스·PubMed 병렬 검색 → 구조화 리포트 (gpt-4.1) → 의사용·환자용 설명 병렬 생성 → 일관성·안전성 검토 → 후속 질문·제목 |
 
 ## 시스템 구성
 
 ```mermaid
 flowchart LR
-    FE["Next.js 16 Web UI<br/>로그인 · 환자/상담 세션 · 업로드<br/>분석 카드 · 스트리밍 · 의사 피드백"]
+    FE["Next.js 16 Web UI<br/>로그인 · 환자/상담 세션 · 업로드<br/>분석 카드 · 스트리밍 · 후속 질문 · 의사 피드백"]
     API["FastAPI<br/>JWT · rate limit · request id<br/>POST /analyze, /analyze/stream (SSE)"]
-    SEG["U-Net<br/>병변 분할 + 게이트"]
-    RAD["PyRadiomics<br/>102 특징"]
-    CLF["Random Forest<br/>TB 확률"]
-    LLM1["LLM 1차 (gpt-4.1)<br/>structured outputs<br/>근거 검증"]
-    LLM2["LLM 2차 (gpt-4.1-mini)<br/>한국어 요약 · 가드레일"]
-    KB["지식베이스 RAG<br/>32 청크 · 임베딩 검색"]
+    subgraph G["LangGraph 챗 파이프라인 (턴마다 체크포인트)"]
+      direction LR
+      V["validate → moderate<br/>(시맨틱 캐시) → classify"]
+      SEG["analyze<br/>U-Net → 게이트 → Radiomics → RF"]
+      RT["retrieve (병렬)<br/>지식베이스 · 유사 케이스 · PubMed"]
+      REP["generate_report<br/>structured outputs · 인용 검증"]
+      EX["explain_doctor ∥ explain_patient<br/>→ compare → safety_check"]
+      EN["enrich<br/>후속 질문 · 세션 제목"]
+      V --> SEG --> RT --> REP --> EX --> EN
+    end
     DB[("PostgreSQL / SQLite<br/>환자 · 세션 · 메시지 · 진단결과 · llm_calls")]
+    LLM["OpenAI gpt-4.1 / 4.1-mini<br/>(폴백: OpenAI 대체 모델 또는 Gemini)"]
 
-    FE -->|multipart + bearer| API
-    API --> SEG --> RAD --> CLF --> LLM1 --> LLM2 --> DB --> FE
-    KB -.->|top-k 청크| LLM1
+    FE -->|multipart + bearer| API --> V
+    EN --> DB --> FE
+    G -.-> LLM
 ```
 
 학습·평가 스크립트와 API 서버가 **같은 파이프라인 코드**(`model/src/pipeline.py`)로 전처리·특징 추출을 하기 때문에 학습 분포와 운영 분포가 어긋나지 않습니다. 전처리는 학습 때 쓴 `tf.image.resize`를 NumPy로 재현했고, 원본 TF 전처리 대비 마스크 IoU 0.99 로 검증했습니다.
@@ -73,10 +79,13 @@ flowchart LR
 ## 데모 흐름
 
 1. 로그인 (운영자가 발급한 임상의 계정) → 환자 등록 → 상담 세션 선택 또는 "새 상담".
-2. X-ray 업로드 + 메모 입력 → 상태가 순서대로 표시됩니다: *병변 분할 중 → 구조화 리포트 생성 중 → 요약 작성 중*.
-3. 분석 카드: 오버레이/마스크/원본 토글, 위험도 배지와 TB 확률 바, 구역 칩과 면적·성분 통계, 상위 기여 특징 표, 접이식 구조화 리포트(개요·근거·권고·한계, 원본 JSON), 모델·지연·토큰·비용 메타.
-4. 한국어 요약이 토큰 단위로 스트리밍되고, 완료되면 가드레일을 통과한 최종 텍스트로 교체됩니다.
-5. 임상의는 "동의 / 비동의 + 메모"로 피드백을 남기고, 같은 세션에서 후속 질문을 이어갑니다 (최근 리포트가 컨텍스트로 들어갑니다).
+2. X-ray 업로드 + 메모 입력 → 그래프 단계가 순서대로 표시됩니다: *입력 확인 → 질문 범위 확인 → 분류 → 병변 분할 → 근거 검색 → 리포트 생성 → 설명 작성 → 일관성·안전성 검토 → 마무리*.
+3. 분석 카드: 오버레이/마스크/원본 토글, 위험도 배지와 TB 확률 바, 구역 칩과 면적·성분 통계, 상위 기여 특징 표, 접이식 구조화 리포트(개요·근거·출처·권고·한계, 원본 JSON), 모델·지연·토큰·비용 메타.
+4. 의사용 요약이 토큰 단위로 스트리밍되고, 완료되면 가드레일을 통과한 최종 텍스트로 교체됩니다. "환자용" 토글로 같은 분석의 쉬운 설명을 볼 수 있습니다 (환자에게 보여주기 전 의사 확인용).
+5. 후속 질문 제안 칩을 누르거나 직접 질문하면 최근 리포트·지식베이스·문헌을 근거로 답합니다. 범위 밖 질문(예: 투자 상담)은 차단되고, 같은 질문은 시맨틱 캐시로 즉시 처리됩니다.
+6. 임상의는 "동의 / 비동의 + 메모"로 피드백을 남깁니다. 첫 분석 뒤 세션 제목이 자동으로 붙습니다.
+7. "환자 링크 공유"로 만료 정책(시간·수동·둘 다)과 질문 횟수를 정해 링크를 만들면, 환자는 로그인 없이 `/share/<token>` 에서 환자용 설명을 읽고 제한된 횟수만큼 질문할 수 있습니다. 접속·질문은 모두 기록되어 의사 화면의 대화 기록과 접속 로그에 나타납니다.
+8. 대시보드에서 기간별 환자·분석 수, 라벨 분포, 평균 지연, LLM 비용, 피드백, 최근 분석을 보고, 환자 페이지의 방문 기록과 변화 추이 그래프로 경과를 봅니다. 관리자는 병원 전체 환자와 의사별 사용 현황을 보고 계정을 발급합니다.
 
 ## 저장소 구조
 
@@ -90,14 +99,16 @@ flowchart LR
 │   ├── outputs/evaluation/       # pipeline_features.csv, screening_metrics.json
 │   └── README.md · MODEL_ARCH.md · WORKLOG.md
 ├── WebBack/                      # FastAPI 백엔드
-│   ├── main.py                   # 라우트, /analyze + /analyze/stream, 세션·피드백·텔레메트리
+│   ├── main.py                   # 라우트, /analyze + /analyze/stream, 세션·피드백·텔레메트리, /graph
+│   ├── graph/                    # ★ LangGraph 챗 파이프라인 (build · state · moderation · retrievers · llm_steps · prompts)
 │   ├── auth.py · settings.py     # JWT/bcrypt, pydantic-settings (production 검증)
 │   ├── inference.py              # 파이프라인 서빙 래퍼 (+ fake 백엔드)
+│   ├── llm_clients.py            # OpenAI / Gemini(선택) / Fake 클라이언트 + 모델명 라우터
 │   ├── llm_report.py · kb.py · llm_schemas.py · guardrails.py · llm_pricing.py
 │   ├── alembic/                  # 스키마 마이그레이션
 │   ├── evals/                    # 고정 케이스 17건 + 규칙 기반 채점기
 │   ├── documents/                # TB 지식베이스 (tb_1 ~ tb_8.txt)
-│   └── tests/                    # pytest 41개 (fake 백엔드로 TensorFlow/OpenAI 없이 실행)
+│   └── tests/                    # pytest 58개 (fake 백엔드로 TensorFlow/OpenAI 없이 실행)
 ├── WebFront/                     # Next.js 16 · TypeScript · Tailwind (로그인, 세션, 분석 카드, 스트리밍)
 ├── scripts/                      # download_shenzhen.sh · download_models.sh
 ├── docs/                         # evaluation.md · MODEL_CARD.md · LLM.md · DEPLOYMENT.md · samples/
@@ -135,11 +146,17 @@ make test                                # pytest 41 + ESLint + tsc
 | --- | --- | --- |
 | `GET` | `/health` | 상태, 추론/LLM 백엔드, 분류기 메타데이터 (인증 불필요) |
 | `POST` | `/auth/login` · `GET /auth/me` | 이메일·비밀번호 → JWT. 임상의 계정은 운영자가 발급, 자가 가입 없음 |
-| `POST` | `/patients/register` · `GET /patients` · `GET /patients/{id}` | 환자 등록·목록·상세 (담당 의사 계정에 귀속) |
+| `POST` | `/patients/register` · `GET /patients?q=&gender=&scope=` · `GET /patients/{id}` | 환자 등록(환자 코드 자동 부여)·검색/필터·상세. `scope=unit` 은 관리자만(병원 전체) |
 | `GET/POST` | `/patients/{id}/sessions` | 상담 세션 목록 · 새 세션 |
-| `GET` | `/patients/{id}/messages?session_id=` | 대화 이력 (어시스턴트 메시지에 `analysis` 포함) |
+| `GET` | `/patients/{id}/messages?session_id=` | 대화 이력 (어시스턴트 메시지에 `analysis` 포함, 환자 링크 질문은 `role=patient`) |
+| `GET/POST` | `/patients/{id}/visits` · `PATCH /visits/{id}` · `GET /patients/{id}/timeline` | 방문 기록과 분석 경과(변화 추이) |
+| `GET/POST` | `/patients/{id}/links` · `DELETE /links/{id}` · `GET /links/{id}/accesses` | 환자 링크 공유: 만료 정책(time/manual/both), 질문 횟수, 종료, 접속 로그 |
+| `GET` | `/share/{token}` · `POST /share/{token}/ask` | **공개(토큰)**: 환자용 설명 열람과 제한된 질문 (만료·종료 시 410, IP 속도 제한) |
+| `GET` | `/dashboard/overview?days=` | 기간별 통계 (관리자는 의사별 사용 현황 포함) |
+| `GET/POST/PATCH` | `/admin/users` | 병원 단위 계정 발급·비활성화 (관리자 전용) |
 | `POST` | `/analyze` | `patient_id`, `text`, `file`, `session_id` multipart → 전체 파이프라인 + LLM 리포트, 이미지 없으면 후속 답변 |
-| `POST` | `/analyze/stream` | 같은 입력, Server-Sent Events: `status` → `analysis` → `delta`* → `done` / `error` |
+| `POST` | `/analyze/stream` | 같은 입력, Server-Sent Events: 그래프 노드별 `status` → `analysis` → `delta`* → `done` / `error` |
+| `GET` | `/graph` | LangGraph 파이프라인의 Mermaid 정의 |
 | `GET` | `/diagnoses/{id}` · `POST /diagnoses/{id}/feedback` | 진단 상세 · 의사 피드백(동의/비동의 + 메모) |
 | `GET` | `/metrics/llm` | 단계·모델별 호출 수, 토큰, 비용, 지연, 폴백/재생성, 피드백 분포 |
 
@@ -184,23 +201,44 @@ make test                                # pytest 41 + ESLint + tsc
 
 > 팀 프로젝트 단계의 ROC-AUC 1.0 은 합성(synthetic) 정상군 100개로 얻은 수치였습니다. 이 버전은 합성 데이터를 제거하고 실제 정상 영상으로 평가했습니다. U-Net 은 같은 데이터셋의 TB 영상으로 학습되었으므로 TB 쪽 분할은 in-sample 이고 정상 영상은 out-of-sample 입니다. 상세와 한계는 [docs/evaluation.md](docs/evaluation.md), [docs/MODEL_CARD.md](docs/MODEL_CARD.md).
 
-## LLM 레이어
+## LLM 레이어 (LangGraph)
 
 | 요소 | 구현 |
 | --- | --- |
-| 구조화 출력 | 1차 리포트를 pydantic 스키마(`RadiomicsReport`)로 강제 (`chat.completions.parse`, strict) |
-| RAG | 지식베이스 8문서 → 32 청크, `text-embedding-3-small` 로 검색, 케이스당 상위 6개만 주입. 근거의 청크 id 인용을 검증해 없는 인용은 제거 |
-| 신뢰성 | 요청 타임아웃, 429/5xx 지수 백오프 재시도, 폴백 모델 (gpt-4.1 → gpt-4.1-mini, gpt-4.1-mini → gpt-4.1) |
-| 가드레일 | 확정 진단 표현 탐지 → 1회 재생성 → 면책 문구, 의사 판단 귀속 확인, 구역→엽 승격 금지 |
-| 텔레메트리 | 호출마다 모델·지연·토큰·추정 비용·시도 횟수·프롬프트 버전을 `llm_calls` 에 기록, `/metrics/llm` 로 집계 |
-| 평가 | 실제 영상 17건의 고정 케이스 + 9개 규칙 채점 (`evals/run_evals.py`) — 프롬프트/모델 변경 시 회귀 확인 |
-| 오프라인 | `LLM_BACKEND=fake` 가 케이스와 일관된 스키마 유효 리포트를 생성 → 테스트·UI 개발에 OpenAI 불필요 |
+| 오케스트레이션 | LangGraph `StateGraph` 18 노드: 검증 → 부적절 질문 차단(시맨틱 캐시) → 분류 → 분석 → **병렬 검색**(지식베이스 · 유사 케이스 · PubMed) → 구조화 리포트 → 근거 매핑 → **의사용 ∥ 환자용 설명** → 일관성 비교 → 안전성 검토 → 후속 질문·제목. 턴마다 SQLite/PostgreSQL 체크포인트, `GET /graph` 로 Mermaid 출력 |
+| 구조화 출력 | 리포트·판정·분류·일관성·후속 질문·제목 모두 pydantic 스키마로 강제 (`chat.completions.parse`, strict) |
+| RAG | 지식베이스 8문서 → 32 청크(`text-embedding-3-small`), Radiomics 벡터 최근접 참조 케이스 3건(Shenzhen 617), PubMed 초록(E-utilities, 키 불필요). 리포트 인용을 검증해 없는 인용은 제거하고 `evidence_sources` 에 출처를 남김 |
+| 역할 분리 | 같은 리포트에서 의사용(근거 중심, 스트리밍)과 환자용(쉬운 말, 확정·치료 언급 금지) 설명을 병렬 생성하고 위험도 일관성을 검사 |
+| 신뢰성 | 요청 타임아웃, 429/5xx 지수 백오프 재시도, 폴백 모델. 기본은 OpenAI 대체 모델, `GOOGLE_API_KEY` + `FALLBACK_PROVIDER=gemini` 면 Gemini(thinking low) 폴백 |
+| 가드레일 | 확정 진단 표현 탐지 → 1회 재생성 → 면책 문구, 의사 판단 귀속 확인, 환자용 전문용어 검사, 구역→엽 승격 금지 |
+| 텔레메트리 | 호출마다 모델·지연·토큰·추정 비용·시도 횟수·캐시 적중·프롬프트 버전을 `llm_calls` 에 기록, `/metrics/llm` 로 집계 |
+| 평가 | 실제 영상 17건의 고정 케이스 + 11개 규칙 채점 (`evals/run_evals.py`) — 프롬프트/모델 변경 시 회귀 확인 |
+| 오프라인 | `LLM_BACKEND=fake` 가 모든 스키마에 대해 케이스와 일관된 답을 생성 → 테스트·UI 개발에 키 불필요 |
 
-설계 세부는 [docs/LLM.md](docs/LLM.md).
+설계 세부와 노드별 역할은 [docs/LLM.md](docs/LLM.md).
+
+### API 키 설정
+
+| 키 | 용도 | 어디에 |
+| --- | --- | --- |
+| `OPENAI_API_KEY` (필수) | 리포트·설명·분류·임베딩 (gpt-4.1, gpt-4.1-mini, text-embedding-3-small) | `WebBack/.env` 또는 환경 변수. 없으면 `LLM_BACKEND=fake` 로 오프라인 동작 |
+| `GOOGLE_API_KEY` (선택) | Gemini 폴백 모델. `FALLBACK_PROVIDER=gemini`, `GEMINI_FALLBACK_MODEL=gemini-2.5-flash` 와 함께 | https://aistudio.google.com/apikey 에서 발급 → `WebBack/.env` |
+| `NCBI_API_KEY` (선택) | PubMed 검색 속도 제한 완화 (초당 3 → 10 요청). 없어도 동작 | https://www.ncbi.nlm.nih.gov/account/ → `WebBack/.env` |
+
+```bash
+# WebBack/.env
+OPENAI_API_KEY=sk-...
+# GOOGLE_API_KEY=AIza...        # Gemini 폴백을 쓸 때만
+# FALLBACK_PROVIDER=gemini
+# NCBI_API_KEY=...              # PubMed 요청량이 많을 때만
+```
+
+Docker Compose 는 `WebBack/.env` 를 그대로 읽습니다. 키는 커밋하지 마세요 (`.env` 는 gitignore).
 
 ## 운영
 
-- **인증/격리**: JWT(bcrypt), 환자·세션·진단은 담당 의사 계정에 귀속. production 설정 검증(무작위 JWT 비밀키, CORS 화이트리스트, 기본 비밀번호·fake 백엔드 거부)이 기동 시 수행됩니다.
+- **인증/격리**: JWT(bcrypt), 병원 단위(`hospital_units`) 안에서 의사는 본인 환자만, 관리자는 병원 전체를 봅니다. 계정은 운영자/관리자가 발급(자가 가입 없음). production 설정 검증(무작위 JWT 비밀키, CORS 화이트리스트, 기본 비밀번호·fake 백엔드 거부)이 기동 시 수행됩니다.
+- **환자 링크**: 32바이트 무작위 토큰, 만료 정책(시간·수동·둘 다)과 질문 횟수 제한, 모든 접속·질문·거부를 `patient_link_accesses` 에 기록, 환자용 답변은 환자 전용 프롬프트(진단·확률·치료 언급 금지)와 같은 가드레일을 거칩니다. 공개 엔드포인트는 HTTPS 뒤에서만 노출하세요.
 - **데이터**: PostgreSQL + Alembic 마이그레이션 (CI 에서 빈 DB 에 적용 검증), SQLite 는 개발용.
 - **배포**: non-root Docker 이미지 2개 + Compose, 헬스체크, JSON 로그, `X-Request-ID`. 가중치는 GitHub Releases 에서 엔트리포인트가 내려받습니다. 체크리스트는 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - **CI**: ruff + pytest + Alembic + ESLint/tsc/`next build` + Docker 이미지 빌드 (`.github/workflows/ci.yml`).
@@ -212,6 +250,9 @@ make test                                # pytest 41 + ESLint + tsc
 - [x] JWT 인증 · PostgreSQL + Alembic · Docker Compose · GitHub Actions · 업로드/CORS/속도 제한 · 요청 ID 로깅
 - [x] LLM: structured outputs · RAG · 재시도/폴백 · 가드레일 · 비용/지연 텔레메트리 · 평가셋
 - [x] UI: 분석 카드(오버레이·특징·리포트 뷰어) · 스트리밍 · 의사 피드백 · 상담 세션
+- [x] LangGraph 챗 파이프라인: 부적절 질문 차단(시맨틱 캐시) · 질문 분류 · 유사 케이스·PubMed 검색 · 의사/환자 이중 설명 · 일관성 검사 · 후속 질문 · 세션 제목 · 턴별 체크포인트
+- [x] 제품 기능: 병원 단위 계정과 관리자 역할 · 방문 기록 타임라인 · 환자 링크 공유(만료 정책·접속 로깅·제한 질문) · 환자용 공개 페이지 · 대시보드/통계 · 환자 검색
+- [ ] LLM-judge 평가 지표 (Faithfulness · Safety Compliance · Role Separation · Understandability)
 - [ ] 외부 데이터셋 검증 (Montgomery, TBX11K) 과 병변 위치 정확도 평가
 - [ ] 피드백 데이터로 분류기 재학습 루프, 모델 레지스트리
 

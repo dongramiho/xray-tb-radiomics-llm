@@ -1,0 +1,22 @@
+/* 줄바꿈 기반 본문 포맷 (마크다운 라이브러리 없음): 문단 / 불릿 블록 */
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.paragraph {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.bulletList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+  line-height: 1.5;
+}
