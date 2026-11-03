@@ -39,7 +39,20 @@ class InferenceService(Protocol):
 
     def analyze(self, image_path: Path, image_id: str) -> AnalysisArtifacts: ...
 
+    def analyze_ct(self, volume_path: Path, mask_path: Path, image_id: str) -> AnalysisArtifacts: ...
+
     def model_metadata(self) -> dict[str, Any]: ...
+
+
+def analyze_ct_files(settings: Settings, volume_path: Path, mask_path: Path, image_id: str) -> AnalysisArtifacts:
+    """CT path shared by both backends: no model is involved, only QC + 3D radiomics on the given mask."""
+    from cxr_tb.src.ct import CTPipeline
+
+    result = CTPipeline().analyze(volume_path, mask_path, image_id=image_id)
+    overlay_rel = f"results/{image_id}_overlay.png"
+    settings.results_dir.mkdir(parents=True, exist_ok=True)
+    result.overlay_image().save(settings.static_dir / overlay_rel)
+    return AnalysisArtifacts(case=result.to_case_json(), overlay_path=overlay_rel, mask_path=None)
 
 
 class RealInferenceService:
@@ -69,10 +82,14 @@ class RealInferenceService:
         result.mask_image().save(self.settings.static_dir / mask_rel)
         return AnalysisArtifacts(case=result.to_case_json(), overlay_path=overlay_rel, mask_path=mask_rel)
 
+    def analyze_ct(self, volume_path: Path, mask_path: Path, image_id: str) -> AnalysisArtifacts:
+        return analyze_ct_files(self.settings, volume_path, mask_path, image_id)
+
     def model_metadata(self) -> dict[str, Any]:
         classifier = self.pipeline.classifier
         return {
             "segmentation_model": str(self.settings.segmentation_model_path.name),
+            "ct": "mask ingestion only (no CT segmentation model); 3D radiomics of the tumor label",
             "classifier": None
             if classifier is None
             else {
@@ -111,7 +128,9 @@ class FakeInferenceService:
             "original_firstorder_Range": 198.0,
         }
         case = {
+            "modality": "xray",
             "image": {"id": image_id, "width": 512, "height": 512, "model_resolution": [512, 512]},
+            "qc": {"passed": True, "usable_for_patient": True, "flags": [], "flag_descriptions": [], "details": {}},
             "segmentation": lesion.to_dict(),
             "radiomics_features": features,
             "ml_results": {
@@ -132,6 +151,9 @@ class FakeInferenceService:
 
         mask_to_image(mask).save(self.settings.static_dir / mask_rel)
         return AnalysisArtifacts(case=case, overlay_path=overlay_rel, mask_path=mask_rel)
+
+    def analyze_ct(self, volume_path: Path, mask_path: Path, image_id: str) -> AnalysisArtifacts:
+        return analyze_ct_files(self.settings, volume_path, mask_path, image_id)
 
     def model_metadata(self) -> dict[str, Any]:
         return {"segmentation_model": "fake", "classifier": {"model_type": "fake", "threshold": 0.5}}

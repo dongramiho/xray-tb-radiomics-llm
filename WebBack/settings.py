@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     )
     static_dir: Path = Field(default=BACKEND_DIR / "static")
     max_upload_mb: int = 20
+    max_ct_upload_mb: int = Field(default=300, description="Size limit for NIfTI CT volumes / masks")
 
     # --- models --------------------------------------------------------------------------
     segmentation_model_path: Path = Field(default=REPO_ROOT / "model" / "outputs" / "checkpoints" / "best_model.h5")
@@ -75,6 +76,7 @@ class Settings(BaseSettings):
     llm_max_retries: int = Field(default=2, description="Retries on rate limits / transient errors before fallback")
     embedding_model: str = Field(default="text-embedding-3-small")
     rag_top_k: int = Field(default=6, description="Knowledge-base chunks injected into the report prompt")
+    judge_model: str = Field(default="gpt-4.1-mini", description="LLM-as-judge model for evals/run_evals.py")
     google_api_key: str = Field(default="", description="Optional: enables the Gemini fallback provider")
     fallback_provider: str = Field(default="openai", description="openai | gemini (gemini requires GOOGLE_API_KEY)")
     gemini_fallback_model: str = Field(

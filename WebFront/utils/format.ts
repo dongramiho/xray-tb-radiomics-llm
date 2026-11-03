@@ -42,3 +42,17 @@ export function formatLatency(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return "–";
   return `${(ms / 1000).toFixed(1)}s`;
 }
+
+/** 1234 → "1 KB"; 15_728_640 → "15.0 MB" (file pickers / upload summaries). */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "–";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+/** NIfTI volume / label map by file name or URL path (".nii" / ".nii.gz", case-insensitive). */
+export function isNiftiPath(name: string): boolean {
+  const base = name.split(/[?#]/)[0].toLowerCase();
+  return base.endsWith(".nii") || base.endsWith(".nii.gz");
+}

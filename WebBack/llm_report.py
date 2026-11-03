@@ -175,6 +175,13 @@ Rules:
 - Ground every statement in the provided case JSON and knowledge-base chunks; never invent values.
 - If ml_results.primary_label is "no_lesion_detected": num_regions = 0, zones = [], tb_probability = null,
   level = low, and recommend clinical correlation instead of describing lesions.
+- Quality control: if case.qc.passed is false or qc.flags is non-empty, state the reduced reliability in
+  ml_summary.reliability_comment and limitations.model_limitations (name the flags), lower model_confidence,
+  and recommend physician review of the images.
+- CT cases (case.modality == "ct"): the mask was produced outside this system; describe the tumor-labelled
+  region (volume, extent, HU statistics, 3D texture) and set tb_probability = null. If
+  ml_results.primary_label is "ct_tumor_label_missing", say that no tumor label was present, which is NOT
+  evidence of absence, and recommend review; never conclude "no tumor".
 - Use MODEL_METADATA only to contextualize reliability; do not restate its numbers as patient findings.
 """
 

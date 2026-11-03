@@ -41,6 +41,14 @@ MIN_LESION_AREA_FRACTION: float = 0.001  # below this fraction of the image, tre
 RISK_LOW_MAX: float = 0.35  # tb_probability < 0.35 -> low
 RISK_HIGH_MIN: float = 0.65  # tb_probability >= 0.65 -> high
 
+# Quality control (an analysis that fails QC is reported with low reliability and is not patient-facing)
+QC_MIN_IMAGE_SIDE: int = 256  # smaller inputs are too degraded for the 512 model
+QC_MIN_CONTRAST_STD: float = 10.0  # grayscale std below this -> blank / washed-out image
+QC_ASPECT_RANGE: tuple[float, float] = (0.6, 1.7)  # width / height outside -> not a frontal CXR crop
+QC_TINY_ROI_FRACTION: float = 0.003  # segmented region smaller than this -> texture features unreliable
+QC_HUGE_ROI_FRACTION: float = 0.35  # larger than this -> segmentation failure, not a lesion
+QC_LOW_CONFIDENCE: float = 0.6  # max pixel probability below this -> low-confidence segmentation
+
 # Miscellaneous
 SHUFFLE_BUFFER_SIZE: int = 256
 RANDOM_SEED: int = 42

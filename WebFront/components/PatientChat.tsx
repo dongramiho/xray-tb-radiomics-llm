@@ -17,6 +17,7 @@ import {
   StreamUnavailableError,
 } from "@/utils/api";
 import { FeedbackResult, Message, Patient, Session, Timeline, Visit, VisitInput } from "@/types";
+import { formatFileSize } from "@/utils/format";
 
 interface PatientChatProps {
   /** Mount with `key={patient.id}` so all chat state resets when the patient changes. */
@@ -161,17 +162,23 @@ export default function PatientChat({ patient }: PatientChatProps) {
     );
   };
 
-  const handleSend = async (text: string, file: File | null) => {
+  // `mask` is set for CT uploads only (`file` = NIfTI volume, `mask` = NIfTI label map).
+  const handleSend = async (text: string, file: File | null, mask?: File | null) => {
     if (busy) return;
     setBusy(true);
 
     const sessionId = activeSessionId ?? undefined;
+    const ctUpload = file && mask ? { volume: file, mask } : null;
     const now = Date.now();
     const userMsg: Message = {
       id: now,
       role: "user",
       content: text,
-      image_path: file ? URL.createObjectURL(file) : undefined,
+      // A NIfTI volume has no browser preview: describe the upload instead of an <img>.
+      image_path: file && !ctUpload ? URL.createObjectURL(file) : undefined,
+      attachment_label: ctUpload
+        ? `CT 볼륨 ${ctUpload.volume.name} (${formatFileSize(ctUpload.volume.size)}) · 마스크 ${ctUpload.mask.name} (${formatFileSize(ctUpload.mask.size)})`
+        : undefined,
       created_at: new Date(now).toISOString(),
     };
     // Provisional assistant bubble; negative id so it can never collide with a persisted message.
@@ -181,7 +188,7 @@ export default function PatientChat({ patient }: PatientChatProps) {
       role: "assistant",
       content: "",
       streaming: true,
-      status: file ? "영상 업로드 중..." : "요청 전송 중...",
+      status: ctUpload ? "CT 볼륨 업로드 중..." : file ? "영상 업로드 중..." : "요청 전송 중...",
     };
     setMessages((prev) => [...prev, userMsg, provisional]);
 
@@ -211,21 +218,28 @@ export default function PatientChat({ patient }: PatientChatProps) {
     };
 
     try {
-      await streamAnalysis(patientId, text, file, sessionId, {
-        // Stage names are open-ended: show whatever message the server sent (keep the last one if empty).
-        onStatus: (status) => patchMessage(provisionalId, (m) => ({ ...m, status: status.message || m.status })),
-        onAnalysis: (analysis) => patchMessage(provisionalId, (m) => ({ ...m, analysis })),
-        onDelta: (chunk) => patchMessage(provisionalId, (m) => ({ ...m, content: m.content + chunk })),
-        onDone: finish,
-        onError: fail,
-      });
+      await streamAnalysis(
+        patientId,
+        text,
+        file,
+        sessionId,
+        {
+          // Stage names are open-ended: show whatever message the server sent (keep the last one if empty).
+          onStatus: (status) => patchMessage(provisionalId, (m) => ({ ...m, status: status.message || m.status })),
+          onAnalysis: (analysis) => patchMessage(provisionalId, (m) => ({ ...m, analysis })),
+          onDelta: (chunk) => patchMessage(provisionalId, (m) => ({ ...m, content: m.content + chunk })),
+          onDone: finish,
+          onError: fail,
+        },
+        mask,
+      );
     } catch (err) {
       if (err instanceof StreamUnavailableError) {
         // Older backend without /analyze/stream: same request through the non-streaming endpoint.
         console.warn("스트리밍 사용 불가, 일반 요청으로 전환:", err.message);
-        patchMessage(provisionalId, (m) => ({ ...m, status: "분석 중..." }));
+        patchMessage(provisionalId, (m) => ({ ...m, status: ctUpload ? "CT 분석 중..." : "분석 중..." }));
         try {
-          finish(await sendMessage(patientId, text, file, sessionId));
+          finish(await sendMessage(patientId, text, file, sessionId, mask));
         } catch (fallbackErr) {
           fail(fallbackErr instanceof Error ? fallbackErr.message : "메시지 전송에 실패했습니다.");
         }

@@ -12,10 +12,16 @@ Checks (per case):
   summary_korean     stage-2 summary is Korean
   patient_guardrails / patient_plain_language  patient explanation defers to the physician, no jargon
 
+LLM-as-judge metrics (``--judge``, default on; ``JUDGE_MODEL`` setting):
+  faithfulness (1-5), answer_relevance (1-5, follow-up answer), understandability (1-5, patient text),
+  role_separation (pass), safety (pass), no_lesion_handling (pass, no-lesion cases),
+  qc_handling (pass, QC-flagged cases)
+
 Usage:
     OPENAI_API_KEY=... python evals/run_evals.py                 # real models from settings
     LLM_BACKEND=fake python evals/run_evals.py                   # plumbing check, no network
     python evals/run_evals.py --report_model gpt-4.1-mini        # compare a cheaper model
+    python evals/run_evals.py --no-judge                         # rule-based checks only
 """
 
 from __future__ import annotations
@@ -33,6 +39,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 import guardrails  # noqa: E402
 import llm_report  # noqa: E402
+from evals.judge import aggregate, judge_case  # noqa: E402
 from graph import llm_steps  # noqa: E402
 from llm_schemas import RadiomicsReport  # noqa: E402
 from settings import Settings  # noqa: E402
@@ -86,12 +93,19 @@ def main() -> None:
     parser.add_argument("--report_model", default=None)
     parser.add_argument("--summary_model", default=None)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--judge", dest="judge", action="store_true", default=True)
+    parser.add_argument("--no-judge", dest="judge", action="store_false")
+    parser.add_argument("--judge_model", default=None)
+    parser.add_argument(
+        "--question", default="추가 검사는 어떤 것을 받아야 하나요?", help="Follow-up asked to every case"
+    )
     parser.add_argument("--out", type=Path, default=BACKEND_DIR / "evals" / "results.json")
     args = parser.parse_args()
 
     settings = Settings()
     report_model = args.report_model or settings.report_model
     summary_model = args.summary_model or settings.summary_model
+    judge_model = args.judge_model or settings.judge_model
     client = llm_report.build_chat_client(settings)
     kb = llm_report.build_knowledge_base(settings)
     model_meta = {"note": "evaluation run", "cross_validation": {"roc_auc_mean": 0.891}}
@@ -110,8 +124,28 @@ def main() -> None:
         patient_summary, trace3 = llm_steps.explain_for_patient(
             report, client=client, model=summary_model, fallback_model=None, doctor_summary=summary
         )
+        answer, trace4 = llm_steps.answer_with_context(
+            args.question,
+            client=client,
+            model=summary_model,
+            fallback_model=None,
+            context_report=report,
+            retrieval=None,
+        )
         latency = time.perf_counter() - t0
         checks = check_case(case, report, summary, kb.chunk_ids, patient_summary)
+        judgment = None
+        if args.judge:
+            judgment = judge_case(
+                case,
+                report,
+                summary,
+                patient_summary,
+                client=client,
+                model=judge_model,
+                question=args.question,
+                answer=answer,
+            )
         rows.append(
             {
                 "image_id": item["image_id"],
@@ -124,13 +158,20 @@ def main() -> None:
                     "report": [trace1.input_tokens, trace1.output_tokens],
                     "summary": [trace2.input_tokens, trace2.output_tokens],
                 },
-                "cost_usd": round((trace1.cost_usd or 0) + (trace2.cost_usd or 0) + (trace3.cost_usd or 0), 6),
+                "cost_usd": round(
+                    (trace1.cost_usd or 0) + (trace2.cost_usd or 0) + (trace3.cost_usd or 0) + (trace4.cost_usd or 0), 6
+                ),
                 "models": [trace1.model, trace2.model],
                 "report_level": report.get("tb_risk_summary", {}).get("level"),
+                "qc_flags": (case.get("qc") or {}).get("flags", []),
+                "judge": judgment,
             }
         )
         status = "PASS" if rows[-1]["passed"] else "FAIL " + ",".join(k for k, v in checks.items() if not v)
-        print(f"{item['image_id']}: {status} ({latency:.1f}s)")
+        judge_note = ""
+        if judgment:
+            judge_note = f" judge: faith={judgment['faithfulness']['score']} safe={judgment['safety']['compliant']}"
+        print(f"{item['image_id']}: {status} ({latency:.1f}s){judge_note}")
 
     summary_out = {
         "report_model": report_model,
@@ -143,6 +184,8 @@ def main() -> None:
             for name in sorted({k for r in rows for k in r["checks"]})
         },
         "latency_s_median": round(statistics.median(r["latency_s"] for r in rows), 2) if rows else None,
+        "judge_model": judge_model if args.judge else None,
+        "judge": aggregate([r["judge"] for r in rows if r.get("judge")]) if args.judge else None,
         "rows": rows,
     }
     args.out.write_text(json.dumps(summary_out, ensure_ascii=False, indent=1))

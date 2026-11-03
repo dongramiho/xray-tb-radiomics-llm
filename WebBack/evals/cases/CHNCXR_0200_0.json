@@ -2,6 +2,7 @@
  "image_id": "CHNCXR_0200_0",
  "label": 0,
  "case": {
+  "modality": "xray",
   "image": {
    "id": "CHNCXR_0200_0",
    "width": 2989,
@@ -10,6 +11,27 @@
     512,
     512
    ]
+  },
+  "qc": {
+   "passed": true,
+   "usable_for_patient": false,
+   "flags": [
+    "tiny_roi"
+   ],
+   "flag_descriptions": [
+    "segmented region is very small; texture features are unreliable"
+   ],
+   "details": {
+    "image_size": [
+     2989,
+     2985
+    ],
+    "contrast_std": 70.49,
+    "aspect_ratio": 1.001,
+    "mask_area_fraction": 0.001858,
+    "max_probability": 0.7395,
+    "n_features": 102
+   }
   },
   "segmentation": {
    "detected": true,
@@ -194,7 +216,8 @@
      "value": 3.8268748818646334
     }
    ],
-   "decision_basis": "Radiomics features of the segmented region scored by the TB classifier; probability is relative to the training distribution (see model metadata)."
+   "decision_basis": "Radiomics features of the segmented region scored by the TB classifier; probability is relative to the training distribution (see model metadata).",
+   "qc_warning": "quality control notes: tiny_roi"
   }
  }
 }

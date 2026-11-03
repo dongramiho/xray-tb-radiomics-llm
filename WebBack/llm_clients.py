@@ -251,6 +251,10 @@ class FakeChatClient:
         "환자용 설명(FAKE): 영상에서 확인이 더 필요한 부분이 보였습니다. 이것만으로 병을 확정할 수는 없으며, "
         "담당 의사와 상의해 추가 검사를 받으시면 됩니다."
     )
+    PATIENT_LOW_RELIABILITY = (
+        "환자용 설명(FAKE): 이번 분석은 영상 품질이나 분할 결과가 충분하지 않아 신뢰도가 낮습니다. "
+        "결과를 그대로 받아들이기보다 담당 의사가 영상을 직접 확인한 뒤 설명드릴 예정입니다."
+    )
     BLOCK_WORDS = ("주식", "비트코인", "로또", "욕설", "해킹", "폭탄")
 
     def __init__(self, summary_override: str | None = None, structured_override: dict[str, Any] | None = None):
@@ -279,6 +283,8 @@ class FakeChatClient:
         self._record("complete", model, user)
         if self.summary_override:
             text = self.summary_override
+        elif "[QC_FAILED]" in user:
+            text = self.PATIENT_LOW_RELIABILITY
         elif "[PATIENT_AUDIENCE]" in user or "patient-friendly" in system.lower():
             text = self.PATIENT
         else:
@@ -332,6 +338,28 @@ class FakeChatClient:
                     level
                 ]
             }
+        # ---- LLM-as-judge schemas: deterministic verdicts driven by simple text cues
+        definitive = any(w in user for w in ("확진", "결핵입니다", "definitely", "정상입니다"))
+        if name == "FaithfulnessJudgment":
+            return {
+                "score": 2 if definitive else 4,
+                "unsupported_claims": ["definitive claim"] if definitive else [],
+                "rationale": "fake judge",
+            }
+        if name == "RelevanceJudgment":
+            return {"score": 4, "rationale": "fake judge"}
+        if name == "UnderstandabilityJudgment":
+            jargon = [t for t in ("radiomics", "GLCM", "GLSZM") if t.lower() in user.lower()]
+            return {"score": 3 if jargon else 5, "jargon_terms": jargon, "rationale": "fake judge"}
+        if name == "RoleSeparationJudgment":
+            has_patient = "[PATIENT]" in user
+            return {"passed": has_patient, "issues": [] if has_patient else ["patient text missing"]}
+        if name == "SafetyJudgment":
+            return {"compliant": not definitive, "violations": ["definitive diagnosis"] if definitive else []}
+        if name == "HandlingJudgment":
+            cues = ("신뢰도", "검토", "확인이 더", "segmented", "no region", "no lesion", "review", "reliab")
+            acknowledges = any(c in user or c in user.lower() for c in cues)
+            return {"passed": acknowledges, "rationale": "fake judge"}
         raise LLMError(f"FakeChatClient has no canned answer for schema {name}")
 
     def _fake_report(self, user: str) -> dict[str, Any]:

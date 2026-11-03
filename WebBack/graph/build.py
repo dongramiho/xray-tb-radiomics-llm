@@ -157,8 +157,17 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
         return out
 
     def analyze(state: TurnState) -> dict[str, Any]:
-        out = _status("segmenting", "U-Net 으로 병변을 분할하고 Radiomics 특징을 추출하는 중")
-        artifacts = deps.inference.analyze(Path(state["image_path"]), state.get("image_id") or "image")
+        if state.get("modality") == "ct":
+            out = _status("segmenting", "CT 마스크를 검증하고 3D Radiomics 특징을 추출하는 중")
+            artifacts = deps.inference.analyze_ct(
+                Path(state["image_path"]), Path(state["mask_path"]), state.get("image_id") or "ct"
+            )
+        else:
+            out = _status("segmenting", "U-Net 으로 병변을 분할하고 Radiomics 특징을 추출하는 중")
+            artifacts = deps.inference.analyze(Path(state["image_path"]), state.get("image_id") or "image")
+        qc = (artifacts.case.get("qc") or {}) if isinstance(artifacts.case, dict) else {}
+        if qc and not qc.get("passed", True):
+            _status("qc", "품질 검사 실패: 결과를 낮은 신뢰도로 보고합니다")
         out["analysis"] = {
             "case": artifacts.case,
             "overlay_path": artifacts.overlay_path,
@@ -182,7 +191,7 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
 
     def retrieve_similar(state: TurnState) -> dict[str, Any]:
         analysis = state.get("analysis")
-        if deps.similar_index is None or not analysis:
+        if deps.similar_index is None or not analysis or analysis["case"].get("modality") == "ct":
             return {"retrieval": {"similar_cases": []}}
         features = analysis["case"].get("radiomics_features")
         cases = deps.similar_index.search(features, k=settings.similar_cases_k)
@@ -262,6 +271,9 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
                 "analysis": {
                     "overlay_path": analysis["overlay_path"],
                     "mask_path": analysis["mask_path"],
+                    "modality": analysis["case"].get("modality", "xray"),
+                    "qc": analysis["case"].get("qc"),
+                    "image": analysis["case"].get("image"),
                     "ml_results": analysis["case"].get("ml_results"),
                     "segmentation": analysis["case"].get("segmentation"),
                     "report": report,
@@ -299,6 +311,7 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
         return out
 
     def explain_patient(state: TurnState) -> dict[str, Any]:
+        qc = ((state.get("analysis") or {}).get("case") or {}).get("qc") or {}
         text, trace = llm_steps.explain_for_patient(
             state["report"],
             client=llm,
@@ -306,6 +319,8 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
             fallback_model=settings.fallback_model_for("summary"),
             timeout=timeout,
             max_retries=retries,
+            qc_failed=bool(qc) and not qc.get("usable_for_patient", True),
+            qc_flags=list(qc.get("flag_descriptions") or qc.get("flags") or []),
         )
         return {"patient_summary": text, "traces": [trace.as_dict()]}
 

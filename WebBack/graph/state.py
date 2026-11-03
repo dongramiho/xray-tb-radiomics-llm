@@ -21,6 +21,8 @@ class TurnState(TypedDict, total=False):
     request_id: str | None
     text: str
     image_path: str | None  # absolute path of the stored upload, when an image was sent
+    mask_path: str | None  # CT only: absolute path of the stored NIfTI label map
+    modality: str  # "xray" | "ct"
     image_id: str | None
     audience: str  # "doctor" | "patient" (who receives the final response)
     prior_report: dict[str, Any] | None  # latest structured report in the session (follow-up context)

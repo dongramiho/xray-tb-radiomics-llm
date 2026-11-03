@@ -61,7 +61,38 @@
   color: white;
 }
 
-/* ---- 헤더: 위험도 / 분류 / 확률 ---- */
+/* ---- 상단: 영상 종류 배지 ---- */
+.topRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.modalityBadge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.modalityXray {
+  color: #d4d4d8;
+  background: rgba(161, 161, 170, 0.12);
+  border-color: rgba(161, 161, 170, 0.35);
+}
+
+.modalityCt {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+/* ---- 헤더: 위험도 / QC / 분류 / 확률 ---- */
 .headerRow {
   display: flex;
   align-items: center;
@@ -100,6 +131,30 @@
 .primaryLabel {
   font-weight: 600;
   color: #fafafa;
+}
+
+/* QC 배지: 플래그가 있으면 버튼 (클릭 시 아래에 목록, hover 시 title 툴팁) */
+.qcButton {
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.qcButton:hover {
+  filter: brightness(1.2);
+}
+
+.qcList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem 0.5rem 1.75rem;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+  list-style: disc;
+  font-size: 0.75rem;
+  color: #d4d4d8;
 }
 
 .probability {
@@ -167,6 +222,25 @@
   color: #93c5fd;
   font-size: 0.7rem;
   font-family: var(--font-geist-mono), monospace;
+}
+
+/* CT: 마스크에 없는 라벨은 흐리게 */
+.chipMuted {
+  border-color: #3f3f46;
+  background: transparent;
+  color: #71717a;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+}
+
+.labelRowTitle {
+  font-size: 0.75rem;
+  color: #a1a1aa;
 }
 
 .note {
@@ -537,4 +611,14 @@
   margin: 0;
   font-size: 0.72rem;
   color: #a1a1aa;
+}
+
+/* QC 가 환자용 설명을 제한한 경우 (환자용 토글 아래) */
+.qcPatientNote {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.72rem;
+  color: #fbbf24;
 }

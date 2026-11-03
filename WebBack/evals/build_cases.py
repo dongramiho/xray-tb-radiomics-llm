@@ -43,6 +43,11 @@ def main() -> None:
     parser.add_argument("--images", nargs="*", default=DEFAULT_IDS)
     parser.add_argument("--image_dir", type=Path, default=DEFAULT_IMAGE_DIR)
     parser.add_argument("--out", type=Path, default=CASES_DIR)
+    parser.add_argument(
+        "--degraded",
+        default="CHNCXR_0345_1",
+        help="Also build a QC-failing case from a 160px downscale of this image ('' to skip)",
+    )
     args = parser.parse_args()
 
     from cxr_tb.config import DEFAULT_CLASSIFIER, DEFAULT_SEGMENTATION_MODEL
@@ -50,15 +55,29 @@ def main() -> None:
 
     pipeline = TBPipeline.from_paths(DEFAULT_SEGMENTATION_MODEL, DEFAULT_CLASSIFIER)
     args.out.mkdir(parents=True, exist_ok=True)
-    for image_id in args.images:
-        path = args.image_dir / f"{image_id}.png"
-        result = pipeline.analyze(path, image_id=image_id)
+
+    def write_case(image_id: str, source, label: int) -> None:
+        result = pipeline.analyze(source, image_id=image_id)
         case = result.to_case_json()
         case.pop("timings_ms", None)
-        payload = {"image_id": image_id, "label": int(image_id.endswith("_1")), "case": case}
+        payload = {"image_id": image_id, "label": label, "case": case}
         (args.out / f"{image_id}.json").write_text(json.dumps(payload, ensure_ascii=False, indent=1))
         ml = case["ml_results"]
-        print(f"{image_id}: {ml['primary_label']} p={ml.get('tb_probability')} zones={case['segmentation']['zones']}")
+        qc = case.get("qc") or {}
+        print(
+            f"{image_id}: {ml['primary_label']} p={ml.get('tb_probability')} zones={case['segmentation']['zones']} "
+            f"qc={'pass' if qc.get('passed', True) else 'FAIL'} {qc.get('flags', [])}"
+        )
+
+    for image_id in args.images:
+        write_case(image_id, args.image_dir / f"{image_id}.png", int(image_id.endswith("_1")))
+
+    if args.degraded:
+        from PIL import Image
+
+        src = Image.open(args.image_dir / f"{args.degraded}.png").convert("L")
+        tiny = src.resize((160, int(160 * src.height / src.width)), Image.BILINEAR)
+        write_case(f"{args.degraded}_degraded", tiny, int(args.degraded.endswith("_1")))
 
 
 if __name__ == "__main__":

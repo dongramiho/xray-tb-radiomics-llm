@@ -162,26 +162,37 @@ export async function registerPatient(formData: { name: string; birthDate: strin
   return await res.json(); // { status, message, data }
 }
 
-function buildAnalyzeForm(patientId: number, text: string, file: File | null, sessionId?: number): FormData {
+// Multipart body shared by /analyze and /analyze/stream.
+//   X-ray: `file` = PNG/JPEG.
+//   CT:    `file` = NIfTI volume (.nii / .nii.gz) + `mask` = NIfTI label map (0 background, 1 liver, 2 tumor).
+function buildAnalyzeForm(
+  patientId: number,
+  text: string,
+  file: File | null,
+  sessionId?: number,
+  mask?: File | null,
+): FormData {
   const formData = new FormData();
   formData.append("patient_id", patientId.toString());
   formData.append("text", text);
   if (file) formData.append("file", file);
+  if (mask) formData.append("mask", mask);
   if (sessionId != null) formData.append("session_id", sessionId.toString());
   return formData;
 }
 
-// 4. 메시지 / X-ray 전송 → 어시스턴트 메시지(분석 결과 포함) 반환
+// 4. 메시지 / X-ray / CT 전송 → 어시스턴트 메시지(분석 결과 포함) 반환
 export async function sendMessage(
   patientId: number,
   text: string,
   file: File | null,
   sessionId?: number,
+  mask?: File | null,
 ): Promise<Message> {
   // Content-Type is left to the browser (multipart boundary); apiFetch only adds Authorization.
   const res = await apiFetch("/analyze", {
     method: "POST",
-    body: buildAnalyzeForm(patientId, text, file, sessionId),
+    body: buildAnalyzeForm(patientId, text, file, sessionId, mask),
   });
   if (!res.ok) throw new Error(await parseError(res, "분석 요청에 실패했습니다."));
   return await res.json();
@@ -309,11 +320,12 @@ export async function streamAnalysis(
   file: File | null,
   sessionId: number | undefined,
   handlers: StreamHandlers,
+  mask?: File | null,
 ): Promise<void> {
   const res = await apiFetch("/analyze/stream", {
     method: "POST",
     headers: { Accept: "text/event-stream" },
-    body: buildAnalyzeForm(patientId, text, file, sessionId),
+    body: buildAnalyzeForm(patientId, text, file, sessionId, mask),
   });
   if (!res.ok) {
     throw new StreamUnavailableError(res.status, await parseError(res, "스트리밍 분석 요청에 실패했습니다."));

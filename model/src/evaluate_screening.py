@@ -87,6 +87,18 @@ def main() -> None:
         },
         "source_csv": str(args.features_csv),
     }
+    if "qc_passed" in df.columns:
+        flags = df["qc_flags"].fillna("").astype(str)
+        counts: dict[str, int] = {}
+        for value in flags:
+            for flag in value.split("|"):
+                if flag:
+                    counts[flag] = counts.get(flag, 0) + 1
+        report["quality_control"] = {
+            "qc_pass_rate": round(float(df["qc_passed"].mean()), 4),
+            "usable_for_patient_rate": round(float(df["qc_usable_for_patient"].mean()), 4),
+            "flag_counts": dict(sorted(counts.items(), key=lambda kv: -kv[1])),
+        }
 
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(report, indent=2))

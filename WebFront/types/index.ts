@@ -20,22 +20,77 @@ export type PatientListParams = {
 
 export type RiskLevel = "low" | "moderate" | "high";
 
+/** Input kind of one analysis: a chest X-ray (PNG/JPEG) or a CT volume + label mask (NIfTI). */
+export type Modality = "xray" | "ct";
+
 export type MlResults = {
+  /** X-ray: tb_suspected / low_tb_likelihood / ...; CT: ct_lesion_characterized / ct_tumor_label_missing. */
   primary_label: string;
+  /** null for CT (no TB classifier runs on CT). */
   tb_probability: number | null;
   risk_level: RiskLevel;
   classifier?: string | null;
   threshold?: number;
   top_features?: { feature: string; importance: number; value: number | null }[];
   decision_basis?: string;
+  /** Short QC caveat for the clinician (both modalities), when the pipeline attached one. */
+  qc_warning?: string;
 };
 
-export type SegmentationSummary = {
+// Lung segmentation summary (X-ray).
+export type XraySegmentationSummary = {
   detected: boolean;
   mask_area_fraction: number;
   num_components: number;
   zones: string[];
   max_probability: number;
+};
+
+export type CtLabelName = "liver" | "tumor";
+
+// Per-label statistics from the clinician-provided CT mask (0 background, 1 liver, 2 tumor).
+export type CtLabelStats = {
+  label: number;
+  voxels: number;
+  volume_ml: number;
+  /** Bounding-box extent per axis (mm). */
+  extent_mm?: number[];
+  max_extent_mm?: number;
+  slices_with_label?: number;
+  mean_hu?: number;
+  std_hu?: number;
+  min_hu?: number;
+  max_hu?: number;
+};
+
+// CT shape of `Analysis.segmentation`; `zones` / `num_components` / `mask_area_fraction` keep the X-ray slots.
+export type CtSegmentationSummary = {
+  detected: boolean;
+  labels_present: CtLabelName[];
+  tumor: CtLabelStats & { label: 2 };
+  liver: CtLabelStats & { label: 1 };
+  zones: string[];
+  num_components: 0 | 1;
+  mask_area_fraction: null;
+};
+
+export type SegmentationSummary = XraySegmentationSummary | CtSegmentationSummary;
+
+// Quality-control verdict on the input / segmentation. `flags` are machine keys, `flag_descriptions`
+// the server's human-readable text in the same order (the UI maps known flags to Korean).
+export type QcResult = {
+  passed: boolean;
+  /** false: the patient-friendly explanation was generated with restricted content. */
+  usable_for_patient: boolean;
+  flags: string[];
+  flag_descriptions: string[];
+  details: Record<string, unknown>;
+};
+
+// Image bookkeeping for one analysis (CT: which axial slice `overlay_url` shows).
+export type AnalysisImageMeta = {
+  overlay_slice?: number | null;
+  [key: string]: unknown;
 };
 
 // Stage-1 structured report produced by the report LLM.
@@ -77,10 +132,17 @@ export type LlmMeta = {
 
 export type Analysis = {
   diagnosis_id: number;
+  /** Absent on records persisted before CT support; treated as "xray". */
+  modality?: Modality;
+  /** X-ray: lesion overlay; CT: one axial slice (tumor red, liver faint blue). */
   overlay_url: string | null;
+  /** null for CT. */
   mask_url: string | null;
+  image?: AnalysisImageMeta | null;
   ml_results: MlResults | null;
   segmentation: SegmentationSummary | null;
+  /** null when QC did not run (older records). */
+  qc?: QcResult | null;
   report: Report | null;
   doctor_feedback: boolean | null;
   doctor_note: string | null;
@@ -116,6 +178,8 @@ export type Message = {
   created_at?: string | null;
   analysis?: Analysis;
   meta?: MessageMeta;
+  /** client-only: summary of a non-image upload (CT volume + mask) shown in the user bubble */
+  attachment_label?: string;
   /** client-only: assistant reply is still being streamed */
   streaming?: boolean;
   /** client-only: current pipeline stage text while streaming */
