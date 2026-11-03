@@ -83,9 +83,10 @@ def test_render_overlay_colours_only_masked_pixels():
 
 
 def test_classifier_bundle_roundtrip(tmp_path):
+    import pandas as pd
     from sklearn.linear_model import LogisticRegression
 
-    X = np.array([[0.0, 1.0], [1.0, 0.0], [0.1, 0.9], [0.9, 0.1]])
+    X = pd.DataFrame([[0.0, 1.0], [1.0, 0.0], [0.1, 0.9], [0.9, 0.1]], columns=["a", "b"])
     y = np.array([0, 1, 0, 1])
     bundle = ClassifierBundle(
         estimator=LogisticRegression().fit(X, y),

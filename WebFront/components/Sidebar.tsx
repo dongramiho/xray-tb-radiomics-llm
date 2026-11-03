@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import styles from "./Sidebar.module.css";
-import { UserPlus, Search } from "lucide-react";
+import { UserPlus, Search, LogOut } from "lucide-react";
 // 👇 [중요] registerPatient 함수를 import 해야 합니다!
-import { fetchPatients, registerPatient } from "@/utils/api"; 
+import { fetchPatients, registerPatient, logout } from "@/utils/api"; 
+import { useStoredUser } from "@/utils/auth";
 import { Patient } from "@/types";
 import PatientModal from "./PatientModal";
 
@@ -17,6 +18,7 @@ export default function Sidebar() {
 
   const router = useRouter();
   const params = useParams();
+  const user = useStoredUser();
 
   const activeId = params?.id ? Number(params.id) : null;
 
@@ -30,6 +32,11 @@ export default function Sidebar() {
   useEffect(() => {
     loadPatients();
   }, [loadPatients]);
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   return (
     <>
@@ -70,6 +77,21 @@ export default function Sidebar() {
                 </div>
               </Link>
             ))}
+        </div>
+
+        {/* 로그인한 의사 정보 + 로그아웃 */}
+        <div className={styles.footer}>
+          <div className={styles.userInfo}>
+            <div className={styles.userName}>{user?.full_name ?? "의료진"}</div>
+            <div className={styles.userEmail}>{user?.email ?? ""}</div>
+          </div>
+          <button
+            className={styles.logoutButton}
+            onClick={handleLogout}
+            title="로그아웃"
+          >
+            <LogOut size={16} /> 로그아웃
+          </button>
         </div>
       </aside>
 

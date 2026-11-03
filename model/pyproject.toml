@@ -19,13 +19,15 @@ dependencies = [
 [project.optional-dependencies]
 # Inference (serving): segmentation model + radiomics feature extraction
 inference = [
-  "tensorflow==2.15.*",
+  "tensorflow-cpu==2.15.*; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "tensorflow==2.15.*; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine != 'x86_64')",
   "SimpleITK",
   "pyradiomics @ git+https://github.com/AIM-Harvard/pyradiomics.git@v3.1.0",
 ]
 # Training the U-Net additionally needs tensorflow-addons (rotation augmentation) and matplotlib
 train = [
-  "tensorflow==2.15.*",
+  "tensorflow-cpu==2.15.*; sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "tensorflow==2.15.*; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine != 'x86_64')",
   "tensorflow-addons==0.22.*",
   "matplotlib",
 ]

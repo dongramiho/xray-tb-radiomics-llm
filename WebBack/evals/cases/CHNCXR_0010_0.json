@@ -1,0 +1,200 @@
+{
+ "image_id": "CHNCXR_0010_0",
+ "label": 0,
+ "case": {
+  "image": {
+   "id": "CHNCXR_0010_0",
+   "width": 3000,
+   "height": 2947,
+   "model_resolution": [
+    512,
+    512
+   ]
+  },
+  "segmentation": {
+   "detected": true,
+   "mask_area_fraction": 0.006943,
+   "num_components": 1,
+   "zones": [
+    "right upper zone"
+   ],
+   "components": [
+    {
+     "area_px": 1820,
+     "area_fraction": 0.0069427490234375,
+     "bbox": [
+      173,
+      74,
+      234,
+      125
+     ],
+     "centroid": [
+      0.3987,
+      0.1933
+     ],
+     "zone": "right upper zone",
+     "max_probability": 0.8030242323875427
+    }
+   ],
+   "max_probability": 0.803,
+   "model_resolution": [
+    512,
+    512
+   ]
+  },
+  "radiomics_features": {
+   "original_shape2D_Elongation": 0.6801101123793115,
+   "original_shape2D_MajorAxisLength": 59.98552361456545,
+   "original_shape2D_MaximumDiameter": 64.19501538281614,
+   "original_shape2D_MeshSurface": 1821.0,
+   "original_shape2D_MinorAxisLength": 40.796761206633946,
+   "original_shape2D_Perimeter": 228.00714267493714,
+   "original_shape2D_PerimeterSurfaceRatio": 0.12520985319875735,
+   "original_shape2D_PixelSurface": 1820.0,
+   "original_shape2D_Sphericity": 0.6634549714901381,
+   "original_firstorder_10Percentile": 129.0,
+   "original_firstorder_90Percentile": 180.0,
+   "original_firstorder_Energy": 44504177.0,
+   "original_firstorder_Entropy": 1.7684796958384303,
+   "original_firstorder_InterquartileRange": 36.0,
+   "original_firstorder_Kurtosis": 1.9775170871942436,
+   "original_firstorder_Maximum": 213.0,
+   "original_firstorder_MeanAbsoluteDeviation": 17.30958881777563,
+   "original_firstorder_Mean": 155.10274725274726,
+   "original_firstorder_Median": 156.0,
+   "original_firstorder_Minimum": 108.0,
+   "original_firstorder_Range": 105.0,
+   "original_firstorder_RobustMeanAbsoluteDeviation": 14.126942852401505,
+   "original_firstorder_RootMeanSquared": 156.37405317217593,
+   "original_firstorder_Skewness": 0.015744511339229432,
+   "original_firstorder_TotalEnergy": 44504177.0,
+   "original_firstorder_Uniformity": 0.3212311315058568,
+   "original_firstorder_Variance": 395.98230014491,
+   "original_glcm_Autocorrelation": 8.303486406904891,
+   "original_glcm_ClusterProminence": 14.337372673552935,
+   "original_glcm_ClusterShade": 0.4029920298498366,
+   "original_glcm_ClusterTendency": 2.649996583485626,
+   "original_glcm_Contrast": 0.21925618121766205,
+   "original_glcm_Correlation": 0.8471133468689083,
+   "original_glcm_DifferenceAverage": 0.21549937848524686,
+   "original_glcm_DifferenceEntropy": 0.7554431269151216,
+   "original_glcm_DifferenceVariance": 0.17099996973168546,
+   "original_glcm_Id": 0.8928764445461125,
+   "original_glcm_Idm": 0.8926259910306181,
+   "original_glcm_Idmn": 0.9915969649351224,
+   "original_glcm_Idn": 0.9641728846032307,
+   "original_glcm_Imc1": -0.5106074412114983,
+   "original_glcm_Imc2": 0.9105701465788972,
+   "original_glcm_InverseVariance": 0.21221217609438353,
+   "original_glcm_JointAverage": 2.7741242557258285,
+   "original_glcm_JointEnergy": 0.22002072512946702,
+   "original_glcm_JointEntropy": 2.6166843650158427,
+   "original_glcm_MCC": 0.8920801986581804,
+   "original_glcm_MaximumProbability": 0.3286692017323467,
+   "original_glcm_SumAverage": 5.548248511451657,
+   "original_glcm_SumEntropy": 2.3872024260505635,
+   "original_glcm_SumSquares": 0.7173131911758219,
+   "original_glrlm_GrayLevelNonUniformity": 129.77326325374443,
+   "original_glrlm_GrayLevelNonUniformityNormalized": 0.2858350301083973,
+   "original_glrlm_GrayLevelVariance": 0.9076601499996388,
+   "original_glrlm_HighGrayLevelRunEmphasis": 9.017992978590037,
+   "original_glrlm_LongRunEmphasis": 36.305040070002974,
+   "original_glrlm_LongRunHighGrayLevelEmphasis": 272.5352400497505,
+   "original_glrlm_LongRunLowGrayLevelEmphasis": 6.752441291631213,
+   "original_glrlm_LowGrayLevelRunEmphasis": 0.2113149412013275,
+   "original_glrlm_RunEntropy": 4.950142303188474,
+   "original_glrlm_RunLengthNonUniformity": 77.3347172870805,
+   "original_glrlm_RunLengthNonUniformityNormalized": 0.1669918318367921,
+   "original_glrlm_RunPercentage": 0.2489010989010989,
+   "original_glrlm_RunVariance": 17.90829246343824,
+   "original_glrlm_ShortRunEmphasis": 0.38915130959022687,
+   "original_glrlm_ShortRunHighGrayLevelEmphasis": 3.5741996949916888,
+   "original_glrlm_ShortRunLowGrayLevelEmphasis": 0.09672118518902299,
+   "original_glszm_GrayLevelNonUniformity": 11.418604651162791,
+   "original_glszm_GrayLevelNonUniformityNormalized": 0.26554894537587886,
+   "original_glszm_GrayLevelVariance": 1.3553272038939967,
+   "original_glszm_HighGrayLevelZoneEmphasis": 7.093023255813954,
+   "original_glszm_LargeAreaEmphasis": 15573.767441860466,
+   "original_glszm_LargeAreaHighGrayLevelEmphasis": 114040.3488372093,
+   "original_glszm_LargeAreaLowGrayLevelEmphasis": 2865.3116020671832,
+   "original_glszm_LowGrayLevelZoneEmphasis": 0.4135594315245478,
+   "original_glszm_SizeZoneNonUniformity": 13.046511627906977,
+   "original_glszm_SizeZoneNonUniformityNormalized": 0.3034072471606274,
+   "original_glszm_SmallAreaEmphasis": 0.5539596707515778,
+   "original_glszm_SmallAreaHighGrayLevelEmphasis": 2.8071764783661237,
+   "original_glszm_SmallAreaLowGrayLevelEmphasis": 0.3019723036792401,
+   "original_glszm_ZoneEntropy": 3.901531666112853,
+   "original_glszm_ZonePercentage": 0.023626373626373626,
+   "original_glszm_ZoneVariance": 13782.312601406165,
+   "original_gldm_DependenceEntropy": 4.317858859576741,
+   "original_gldm_DependenceNonUniformity": 363.9054945054945,
+   "original_gldm_DependenceNonUniformityNormalized": 0.19994807390411787,
+   "original_gldm_DependenceVariance": 4.137285352010627,
+   "original_gldm_GrayLevelNonUniformity": 584.6406593406593,
+   "original_gldm_GrayLevelVariance": 0.7249761502234029,
+   "original_gldm_HighGrayLevelEmphasis": 8.402747252747252,
+   "original_gldm_LargeDependenceEmphasis": 53.26043956043956,
+   "original_gldm_LargeDependenceHighGrayLevelEmphasis": 430.2697802197802,
+   "original_gldm_LargeDependenceLowGrayLevelEmphasis": 9.524476190476191,
+   "original_gldm_LowGrayLevelEmphasis": 0.18758058608058611,
+   "original_gldm_SmallDependenceEmphasis": 0.04182290905271348,
+   "original_gldm_SmallDependenceHighGrayLevelEmphasis": 0.3300702717696766,
+   "original_gldm_SmallDependenceLowGrayLevelEmphasis": 0.012565767939305295,
+   "original_ngtdm_Busyness": 9.125302952722311,
+   "original_ngtdm_Coarseness": 0.009406028727911641,
+   "original_ngtdm_Complexity": 1.9836868644515886,
+   "original_ngtdm_Contrast": 0.014823125650276835,
+   "original_ngtdm_Strength": 0.07463839873688105
+  },
+  "ml_results": {
+   "primary_label": "low_tb_likelihood",
+   "tb_probability": 0.0889,
+   "risk_level": "low",
+   "classifier": "rf",
+   "threshold": 0.5,
+   "top_features": [
+    {
+     "feature": "original_glszm_SizeZoneNonUniformity",
+     "importance": 0.061343,
+     "value": 13.046511627906977
+    },
+    {
+     "feature": "original_glrlm_RunLengthNonUniformity",
+     "importance": 0.052139,
+     "value": 77.3347172870805
+    },
+    {
+     "feature": "original_glszm_GrayLevelNonUniformity",
+     "importance": 0.041668,
+     "value": 11.418604651162791
+    },
+    {
+     "feature": "original_glrlm_GrayLevelNonUniformity",
+     "importance": 0.032421,
+     "value": 129.77326325374443
+    },
+    {
+     "feature": "original_shape2D_Perimeter",
+     "importance": 0.029135,
+     "value": 228.00714267493714
+    },
+    {
+     "feature": "original_shape2D_MeshSurface",
+     "importance": 0.027359,
+     "value": 1821.0
+    },
+    {
+     "feature": "original_shape2D_PixelSurface",
+     "importance": 0.025497,
+     "value": 1820.0
+    },
+    {
+     "feature": "original_glszm_ZoneEntropy",
+     "importance": 0.025305,
+     "value": 3.901531666112853
+    }
+   ],
+   "decision_basis": "Radiomics features of the segmented region scored by the TB classifier; probability is relative to the training distribution (see model metadata)."
+  }
+ }
+}

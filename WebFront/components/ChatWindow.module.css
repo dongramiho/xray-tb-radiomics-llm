@@ -34,14 +34,14 @@
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  align-items: center; 
+  align-items: center;
 }
 
 
 
 /* 2. 스크롤바 디자인*/
 .chatArea::-webkit-scrollbar {
-  width: 6px; 
+  width: 6px;
 }
 
 .chatArea::-webkit-scrollbar-track {
@@ -64,6 +64,13 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.emptyState {
+  margin: 2rem 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #71717a;
 }
 
 .messageRow {
@@ -89,7 +96,7 @@
 }
 
 .messageBubble {
-  max-width: 80%; 
+  max-width: 80%;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -105,10 +112,29 @@
 .aiBubble {
   padding-top: 0.25rem;
   color: #e4e4e7;
+  min-width: 0;
+  flex: 1;
 }
 
 .messageText {
   white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* 어시스턴트 본문: 문단 / 불릿 블록 */
+.contentBlocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.bulletList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
   line-height: 1.5;
 }
 
@@ -118,12 +144,40 @@
   border-radius: 0.5rem;
 }
 
-.analysisFigure {
-  margin: 0 0 0.75rem 0;
-}
-
-.analysisCaption {
+/* 스트리밍 진행 표시 */
+.streamingRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 0.75rem;
   color: #a1a1aa;
-  margin-top: 0.25rem;
+}
+
+.pulseDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #60a5fa;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.errorText {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: #f87171;
+  white-space: pre-wrap;
 }

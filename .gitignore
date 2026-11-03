@@ -36,3 +36,9 @@ Thumbs.db
 .vscode/
 .idea/
 *.code-workspace
+
+# derived knowledge-base embedding cache
+WebBack/documents/.kb_index.json
+
+# LLM evaluation outputs
+WebBack/evals/results.json

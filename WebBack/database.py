@@ -21,3 +21,18 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def run_migrations() -> None:
+    """Apply Alembic migrations up to head (used at startup in dev/test; Docker runs it in the entrypoint)."""
+    from pathlib import Path
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    backend_dir = Path(__file__).resolve().parent
+    config = Config(str(backend_dir / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_dir / "alembic"))
+    config.attributes["configure_logger"] = False
+    command.upgrade(config, "head")
