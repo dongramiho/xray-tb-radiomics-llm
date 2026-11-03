@@ -1,0 +1,47 @@
+/* 환자별 결핵 확률 변화 추이 (inline SVG) */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 44rem;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+}
+
+.markerGroup {
+  cursor: pointer;
+  outline: none;
+}
+
+.markerGroup:focus-visible circle,
+.markerGroup:focus-visible polygon {
+  stroke: #60a5fa;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.7rem;
+  color: #a1a1aa;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #71717a;
+}

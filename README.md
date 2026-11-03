@@ -34,7 +34,8 @@
 | **출력** | 병변 오버레이 · 폐야 구역과 면적 · TB 확률과 위험도 · 상위 기여 특징 · 구조화 JSON 리포트(근거 인용 포함) · **의사용 요약(스트리밍) + 환자용 설명** · 후속 질문 제안 |
 | **실데이터 성능** | Shenzhen 662장 종단 ROC-AUC **0.897**, 민감도 81.9%, 특이도 85.6% — 합성 데이터 없이, 교차검증으로 ([상세](docs/evaluation.md)) |
 | **지연** | 업로드 → 분할 → Radiomics → 분류 **0.3–0.5초** (CPU), 이후 LLM 2회 호출 (요약은 토큰 스트리밍) |
-| **운영** | JWT 인증 · 환자 데이터 의사별 격리 · PostgreSQL + Alembic · Docker Compose · GitHub Actions CI · 요청 ID 로깅 · LLM 비용/지연 텔레메트리 |
+| **운영** | JWT 인증 · 병원 단위 계정(의사/관리자) · 환자 데이터 격리 · PostgreSQL + Alembic · Docker Compose · GitHub Actions CI · 요청 ID 로깅 · LLM 비용/지연 텔레메트리 |
+| **제품 기능** | 방문 기록 타임라인 · 환자 링크 공유(시간/수동/복합 만료, 질문 횟수 제한, 접속·질문 로깅) · 환자용 공개 페이지 · 대시보드/통계(관리자: 의사별 사용 현황) · 환자 검색/필터 |
 | **스택** | TensorFlow 2.15 U-Net · PyRadiomics · scikit-learn · **LangGraph** · FastAPI · SQLAlchemy · Next.js 16 · OpenAI (structured outputs, embeddings) · Gemini 폴백(선택) |
 
 ## 왜 이렇게 만들었나
@@ -83,6 +84,8 @@ flowchart LR
 4. 의사용 요약이 토큰 단위로 스트리밍되고, 완료되면 가드레일을 통과한 최종 텍스트로 교체됩니다. "환자용" 토글로 같은 분석의 쉬운 설명을 볼 수 있습니다 (환자에게 보여주기 전 의사 확인용).
 5. 후속 질문 제안 칩을 누르거나 직접 질문하면 최근 리포트·지식베이스·문헌을 근거로 답합니다. 범위 밖 질문(예: 투자 상담)은 차단되고, 같은 질문은 시맨틱 캐시로 즉시 처리됩니다.
 6. 임상의는 "동의 / 비동의 + 메모"로 피드백을 남깁니다. 첫 분석 뒤 세션 제목이 자동으로 붙습니다.
+7. "환자 링크 공유"로 만료 정책(시간·수동·둘 다)과 질문 횟수를 정해 링크를 만들면, 환자는 로그인 없이 `/share/<token>` 에서 환자용 설명을 읽고 제한된 횟수만큼 질문할 수 있습니다. 접속·질문은 모두 기록되어 의사 화면의 대화 기록과 접속 로그에 나타납니다.
+8. 대시보드에서 기간별 환자·분석 수, 라벨 분포, 평균 지연, LLM 비용, 피드백, 최근 분석을 보고, 환자 페이지의 방문 기록과 변화 추이 그래프로 경과를 봅니다. 관리자는 병원 전체 환자와 의사별 사용 현황을 보고 계정을 발급합니다.
 
 ## 저장소 구조
 
@@ -105,7 +108,7 @@ flowchart LR
 │   ├── alembic/                  # 스키마 마이그레이션
 │   ├── evals/                    # 고정 케이스 17건 + 규칙 기반 채점기
 │   ├── documents/                # TB 지식베이스 (tb_1 ~ tb_8.txt)
-│   └── tests/                    # pytest 49개 (fake 백엔드로 TensorFlow/OpenAI 없이 실행)
+│   └── tests/                    # pytest 58개 (fake 백엔드로 TensorFlow/OpenAI 없이 실행)
 ├── WebFront/                     # Next.js 16 · TypeScript · Tailwind (로그인, 세션, 분석 카드, 스트리밍)
 ├── scripts/                      # download_shenzhen.sh · download_models.sh
 ├── docs/                         # evaluation.md · MODEL_CARD.md · LLM.md · DEPLOYMENT.md · samples/
@@ -143,9 +146,14 @@ make test                                # pytest 41 + ESLint + tsc
 | --- | --- | --- |
 | `GET` | `/health` | 상태, 추론/LLM 백엔드, 분류기 메타데이터 (인증 불필요) |
 | `POST` | `/auth/login` · `GET /auth/me` | 이메일·비밀번호 → JWT. 임상의 계정은 운영자가 발급, 자가 가입 없음 |
-| `POST` | `/patients/register` · `GET /patients` · `GET /patients/{id}` | 환자 등록·목록·상세 (담당 의사 계정에 귀속) |
+| `POST` | `/patients/register` · `GET /patients?q=&gender=&scope=` · `GET /patients/{id}` | 환자 등록(환자 코드 자동 부여)·검색/필터·상세. `scope=unit` 은 관리자만(병원 전체) |
 | `GET/POST` | `/patients/{id}/sessions` | 상담 세션 목록 · 새 세션 |
-| `GET` | `/patients/{id}/messages?session_id=` | 대화 이력 (어시스턴트 메시지에 `analysis` 포함) |
+| `GET` | `/patients/{id}/messages?session_id=` | 대화 이력 (어시스턴트 메시지에 `analysis` 포함, 환자 링크 질문은 `role=patient`) |
+| `GET/POST` | `/patients/{id}/visits` · `PATCH /visits/{id}` · `GET /patients/{id}/timeline` | 방문 기록과 분석 경과(변화 추이) |
+| `GET/POST` | `/patients/{id}/links` · `DELETE /links/{id}` · `GET /links/{id}/accesses` | 환자 링크 공유: 만료 정책(time/manual/both), 질문 횟수, 종료, 접속 로그 |
+| `GET` | `/share/{token}` · `POST /share/{token}/ask` | **공개(토큰)**: 환자용 설명 열람과 제한된 질문 (만료·종료 시 410, IP 속도 제한) |
+| `GET` | `/dashboard/overview?days=` | 기간별 통계 (관리자는 의사별 사용 현황 포함) |
+| `GET/POST/PATCH` | `/admin/users` | 병원 단위 계정 발급·비활성화 (관리자 전용) |
 | `POST` | `/analyze` | `patient_id`, `text`, `file`, `session_id` multipart → 전체 파이프라인 + LLM 리포트, 이미지 없으면 후속 답변 |
 | `POST` | `/analyze/stream` | 같은 입력, Server-Sent Events: 그래프 노드별 `status` → `analysis` → `delta`* → `done` / `error` |
 | `GET` | `/graph` | LangGraph 파이프라인의 Mermaid 정의 |
@@ -229,7 +237,8 @@ Docker Compose 는 `WebBack/.env` 를 그대로 읽습니다. 키는 커밋하�
 
 ## 운영
 
-- **인증/격리**: JWT(bcrypt), 환자·세션·진단은 담당 의사 계정에 귀속. production 설정 검증(무작위 JWT 비밀키, CORS 화이트리스트, 기본 비밀번호·fake 백엔드 거부)이 기동 시 수행됩니다.
+- **인증/격리**: JWT(bcrypt), 병원 단위(`hospital_units`) 안에서 의사는 본인 환자만, 관리자는 병원 전체를 봅니다. 계정은 운영자/관리자가 발급(자가 가입 없음). production 설정 검증(무작위 JWT 비밀키, CORS 화이트리스트, 기본 비밀번호·fake 백엔드 거부)이 기동 시 수행됩니다.
+- **환자 링크**: 32바이트 무작위 토큰, 만료 정책(시간·수동·둘 다)과 질문 횟수 제한, 모든 접속·질문·거부를 `patient_link_accesses` 에 기록, 환자용 답변은 환자 전용 프롬프트(진단·확률·치료 언급 금지)와 같은 가드레일을 거칩니다. 공개 엔드포인트는 HTTPS 뒤에서만 노출하세요.
 - **데이터**: PostgreSQL + Alembic 마이그레이션 (CI 에서 빈 DB 에 적용 검증), SQLite 는 개발용.
 - **배포**: non-root Docker 이미지 2개 + Compose, 헬스체크, JSON 로그, `X-Request-ID`. 가중치는 GitHub Releases 에서 엔트리포인트가 내려받습니다. 체크리스트는 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - **CI**: ruff + pytest + Alembic + ESLint/tsc/`next build` + Docker 이미지 빌드 (`.github/workflows/ci.yml`).
@@ -242,7 +251,7 @@ Docker Compose 는 `WebBack/.env` 를 그대로 읽습니다. 키는 커밋하�
 - [x] LLM: structured outputs · RAG · 재시도/폴백 · 가드레일 · 비용/지연 텔레메트리 · 평가셋
 - [x] UI: 분석 카드(오버레이·특징·리포트 뷰어) · 스트리밍 · 의사 피드백 · 상담 세션
 - [x] LangGraph 챗 파이프라인: 부적절 질문 차단(시맨틱 캐시) · 질문 분류 · 유사 케이스·PubMed 검색 · 의사/환자 이중 설명 · 일관성 검사 · 후속 질문 · 세션 제목 · 턴별 체크포인트
-- [ ] 환자 링크 공유(만료 정책)·병원 단위 계정·관리자 대시보드 (발표 설계의 제품 기능)
+- [x] 제품 기능: 병원 단위 계정과 관리자 역할 · 방문 기록 타임라인 · 환자 링크 공유(만료 정책·접속 로깅·제한 질문) · 환자용 공개 페이지 · 대시보드/통계 · 환자 검색
 - [ ] LLM-judge 평가 지표 (Faithfulness · Safety Compliance · Role Separation · Understandability)
 - [ ] 외부 데이터셋 검증 (Montgomery, TBX11K) 과 병변 위치 정확도 평가
 - [ ] 피드백 데이터로 분류기 재학습 루프, 모델 레지스트리

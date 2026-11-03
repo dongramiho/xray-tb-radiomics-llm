@@ -4,15 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ChatWindow from "./ChatWindow";
 import InputBar from "./InputBar";
 import SessionBar from "./SessionBar";
+import VisitsPanel from "./VisitsPanel";
 import {
   createSession,
+  createVisit,
   fetchMessages,
   fetchSessions,
+  fetchTimeline,
+  fetchVisits,
   sendMessage,
   streamAnalysis,
   StreamUnavailableError,
 } from "@/utils/api";
-import { FeedbackResult, Message, Patient, Session } from "@/types";
+import { FeedbackResult, Message, Patient, Session, Timeline, Visit, VisitInput } from "@/types";
 
 interface PatientChatProps {
   /** Mount with `key={patient.id}` so all chat state resets when the patient changes. */
@@ -29,6 +33,13 @@ export default function PatientChat({ patient }: PatientChatProps) {
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [creatingSession, setCreatingSession] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Visits / trend: optional context (older backends without the endpoints just leave them empty).
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [visitsLoading, setVisitsLoading] = useState(true);
+  const [timeline, setTimeline] = useState<Timeline | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(true);
+  // Visit the next "새 상담" is attached to (optional).
+  const [newSessionVisitId, setNewSessionVisitId] = useState<number | null>(null);
   // Sequence number so a slow message load cannot overwrite a newer session selection.
   const loadSeq = useRef(0);
 
@@ -59,6 +70,26 @@ export default function PatientChat({ patient }: PatientChatProps) {
     }
   }, [patientId]);
 
+  const refreshVisits = useCallback(async () => {
+    try {
+      setVisits(await fetchVisits(patientId));
+    } catch (err) {
+      console.warn("방문 기록 로드 실패:", err);
+    } finally {
+      setVisitsLoading(false);
+    }
+  }, [patientId]);
+
+  const refreshTimeline = useCallback(async () => {
+    try {
+      setTimeline(await fetchTimeline(patientId));
+    } catch (err) {
+      console.warn("변화 추이 로드 실패:", err);
+    } finally {
+      setTimelineLoading(false);
+    }
+  }, [patientId]);
+
   // 초기 로드: 세션 목록 → 최신 세션 선택 → 그 세션의 메시지
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +111,12 @@ export default function PatientChat({ patient }: PatientChatProps) {
     };
   }, [patientId, loadMessages]);
 
+  // 방문 기록 / 변화 추이는 채팅과 독립적으로 로드
+  useEffect(() => {
+    void refreshVisits();
+    void refreshTimeline();
+  }, [refreshVisits, refreshTimeline]);
+
   const handleSelectSession = (sessionId: number) => {
     if (sessionId === activeSessionId) return;
     setActiveSessionId(sessionId);
@@ -90,18 +127,26 @@ export default function PatientChat({ patient }: PatientChatProps) {
     if (creatingSession || busy) return;
     setCreatingSession(true);
     try {
-      const session = await createSession(patientId);
+      const session = await createSession(patientId, undefined, newSessionVisitId ?? undefined);
       loadSeq.current += 1; // drop any message load still in flight
       setSessions((prev) => [session, ...prev.filter((s) => s.id !== session.id)]);
       setActiveSessionId(session.id);
       setMessages([]);
       setLoadingMessages(false);
+      if (newSessionVisitId != null) void refreshVisits(); // session_count changed
     } catch (err) {
       console.error("새 상담 생성 실패:", err);
       alert(err instanceof Error ? err.message : "새 상담을 만들지 못했습니다.");
     } finally {
       setCreatingSession(false);
     }
+  };
+
+  // The new visit is preselected for the next "새 상담" so the usual flow is: 방문 추가 → 새 상담 → 분석.
+  const handleCreateVisit = async (input: VisitInput) => {
+    const visit = await createVisit(patientId, input);
+    setVisits((prev) => [visit, ...prev.filter((v) => v.id !== visit.id)]);
+    setNewSessionVisitId(visit.id);
   };
 
   const patchMessage = (id: number, patch: (msg: Message) => Message) => {
@@ -197,6 +242,11 @@ export default function PatientChat({ patient }: PatientChatProps) {
       if (list && sessionId == null) {
         setActiveSessionId(outcome.persisted.session_id ?? list[0]?.id ?? null);
       }
+      // A new analysis shows up in the visit badges and the trend chart.
+      if (outcome.persisted.analysis) {
+        void refreshVisits();
+        void refreshTimeline();
+      }
     }
   };
 
@@ -215,14 +265,29 @@ export default function PatientChat({ patient }: PatientChatProps) {
         onFeedbackSaved={handleFeedbackSaved}
         onFollowUp={handleFollowUp}
         toolbar={
-          <SessionBar
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            onSelect={handleSelectSession}
-            onCreate={handleNewSession}
-            creating={creatingSession}
-            disabled={busy}
-          />
+          <>
+            <VisitsPanel
+              visits={visits}
+              loading={visitsLoading}
+              timeline={timeline}
+              timelineLoading={timelineLoading}
+              onCreateVisit={handleCreateVisit}
+              onSelectSession={handleSelectSession}
+              disabled={busy}
+            />
+            <SessionBar
+              patientId={patientId}
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSelect={handleSelectSession}
+              onCreate={handleNewSession}
+              creating={creatingSession}
+              disabled={busy}
+              visits={visits}
+              newSessionVisitId={newSessionVisitId}
+              onNewSessionVisitChange={setNewSessionVisitId}
+            />
+          </>
         }
       />
       <InputBar onSendMessage={handleSend} disabled={false} busy={busy} />

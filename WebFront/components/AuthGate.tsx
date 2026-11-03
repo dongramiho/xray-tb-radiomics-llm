@@ -8,12 +8,14 @@ import { fetchMe } from "@/utils/api";
 import { getToken, useHasToken } from "@/utils/auth";
 
 const LOGIN_PATH = "/login";
+// Public patient share pages: no login, no sidebar.
+const SHARE_PREFIX = "/share";
 
 interface AuthGateProps {
   children: ReactNode;
 }
 
-// /login 은 사이드바 없이 페이지만, 그 외는 토큰 확인이 끝난 뒤에만 사이드바 + 페이지 렌더링
+// /login 과 /share/* 는 사이드바 없이 페이지만, 그 외는 토큰 확인이 끝난 뒤에만 사이드바 + 페이지 렌더링
 export default function AuthGate({ children }: AuthGateProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -21,9 +23,10 @@ export default function AuthGate({ children }: AuthGateProps) {
   const [verified, setVerified] = useState(false);
 
   const isLoginPage = pathname === LOGIN_PATH;
+  const isPublicPage = isLoginPage || pathname === SHARE_PREFIX || pathname.startsWith(`${SHARE_PREFIX}/`);
 
   useEffect(() => {
-    if (isLoginPage || hasToken === null) return;
+    if (isPublicPage || hasToken === null) return;
 
     if (!hasToken) {
       router.replace(LOGIN_PATH);
@@ -45,9 +48,9 @@ export default function AuthGate({ children }: AuthGateProps) {
     return () => {
       cancelled = true;
     };
-  }, [isLoginPage, hasToken, verified, router]);
+  }, [isPublicPage, hasToken, verified, router]);
 
-  if (isLoginPage) return <>{children}</>;
+  if (isPublicPage) return <>{children}</>;
 
   if (!hasToken || !verified) {
     return <div className={styles.loading}>인증 확인 중...</div>;

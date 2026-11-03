@@ -11,10 +11,11 @@ from __future__ import annotations
 import io
 import json
 import logging
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +39,17 @@ import llm_report
 from graph.build import ChatGraph, GraphDeps, make_checkpointer
 from inference import AnalysisArtifacts, InferenceService, build_inference_service, new_image_id
 from logging_config import configure_logging
-from schemas import FeedbackIn, PatientCreate, SessionCreate
+from schemas import (
+    AdminUserCreate,
+    AdminUserPatch,
+    FeedbackIn,
+    LinkCreate,
+    PatientCreate,
+    SessionCreate,
+    ShareQuestion,
+    VisitIn,
+    VisitPatch,
+)
 from settings import Settings, get_settings
 
 logger = logging.getLogger("webback")
@@ -179,11 +190,161 @@ def session_to_dict(session: DBTable.ChatSession) -> dict[str, Any]:
     return {
         "id": session.id,
         "patient_id": session.patient_id,
+        "visit_id": session.visit_id,
         "title": session.title,
         "created_at": session.created_at.isoformat() if session.created_at else None,
         "message_count": len(messages),
         "last_message_at": messages[-1].created_at.isoformat() if messages and messages[-1].created_at else None,
     }
+
+
+def patient_to_dict(patient: DBTable.Patient) -> dict[str, Any]:
+    doctor = patient.doctor
+    return {
+        "id": patient.id,
+        "name": patient.name,
+        "birthDate": patient.birthDate,
+        "gender": patient.gender,
+        "patient_code": patient.patient_code,
+        "medical_history": patient.medical_history,
+        "created_at": patient.created_at.isoformat() if patient.created_at else None,
+        "lastVisit": patient.created_at.strftime("%Y-%m-%d") if patient.created_at else "",
+        "doctor": {"id": doctor.id, "full_name": doctor.full_name} if doctor else None,
+        "hospital_unit_id": patient.hospital_unit_id,
+    }
+
+
+def next_patient_code(db: Session) -> str:
+    count = db.query(func.count(DBTable.Patient.id)).scalar() or 0
+    while True:
+        count += 1
+        candidate = f"P-{count:06d}"
+        if not db.query(DBTable.Patient.id).filter(DBTable.Patient.patient_code == candidate).first():
+            return candidate
+
+
+def scoped_patients(db: Session, user: DBTable.User, scope: str = "mine"):
+    """Doctors see their own patients; administrators may widen to the whole hospital unit."""
+    query = db.query(DBTable.Patient)
+    if auth.is_admin(user) and scope == "unit" and user.hospital_unit_id is not None:
+        return query.filter(DBTable.Patient.hospital_unit_id == user.hospital_unit_id)
+    return query.filter(DBTable.Patient.user_id == user.id)
+
+
+def parse_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError as err:
+        raise HTTPException(status_code=422, detail=f"Invalid datetime: {value}") from err
+
+
+def diagnosis_brief(diagnosis: DBTable.DiagnosisResult, settings: Settings) -> dict[str, Any]:
+    case = diagnosis.model_raw_json or {}
+    ml = case.get("ml_results") or {}
+    seg = case.get("segmentation") or {}
+    message = diagnosis.message
+    return {
+        "diagnosis_id": diagnosis.id,
+        "session_id": message.session_id if message else None,
+        "created_at": message.created_at.isoformat() if message and message.created_at else None,
+        "risk_level": ml.get("risk_level"),
+        "tb_probability": ml.get("tb_probability"),
+        "primary_label": ml.get("primary_label"),
+        "mask_area_fraction": seg.get("mask_area_fraction"),
+        "overlay_url": static_url(settings, diagnosis.overlay_path),
+    }
+
+
+def patient_diagnoses(db: Session, patient_id: int) -> list[DBTable.DiagnosisResult]:
+    return (
+        db.query(DBTable.DiagnosisResult)
+        .join(DBTable.Message, DBTable.Message.id == DBTable.DiagnosisResult.message_id)
+        .join(DBTable.ChatSession, DBTable.ChatSession.id == DBTable.Message.session_id)
+        .filter(DBTable.ChatSession.patient_id == patient_id)
+        .order_by(DBTable.Message.created_at.asc(), DBTable.DiagnosisResult.id.asc())
+        .all()
+    )
+
+
+def visit_to_dict(visit: DBTable.Visit, settings: Settings) -> dict[str, Any]:
+    analyses = [
+        diagnosis_brief(msg.diagnosis, settings)
+        for session in (visit.sessions or [])
+        for msg in (session.messages or [])
+        if msg.diagnosis is not None
+    ]
+    return {
+        "id": visit.id,
+        "patient_id": visit.patient_id,
+        "visited_at": visit.visited_at.isoformat() if visit.visited_at else None,
+        "symptoms": visit.symptoms,
+        "treatment": visit.treatment,
+        "notes": visit.notes,
+        "session_count": len(visit.sessions or []),
+        "analyses": analyses,
+    }
+
+
+def link_status(link: DBTable.PatientLink, now: datetime | None = None) -> str:
+    now = now or datetime.now()
+    if link.revoked_at is not None:
+        return "revoked"
+    if link.expire_policy in {"time", "both"} and link.expires_at is not None and link.expires_at <= now:
+        return "expired"
+    return "active"
+
+
+def link_to_dict(link: DBTable.PatientLink, settings: Settings) -> dict[str, Any]:
+    return {
+        "id": link.id,
+        "token": link.token,
+        "url": f"{settings.frontend_base_url.rstrip('/')}/share/{link.token}",
+        "patient_id": link.patient_id,
+        "session_id": link.session_id,
+        "doctor_id": link.doctor_id,
+        "expire_policy": link.expire_policy,
+        "expires_at": link.expires_at.isoformat() if link.expires_at else None,
+        "revoked_at": link.revoked_at.isoformat() if link.revoked_at else None,
+        "max_questions": link.max_questions,
+        "questions_used": link.questions_used,
+        "created_at": link.created_at.isoformat() if link.created_at else None,
+        "last_accessed_at": link.last_accessed_at.isoformat() if link.last_accessed_at else None,
+        "status": link_status(link),
+    }
+
+
+def log_link_access(
+    db: Session, link: DBTable.PatientLink, kind: str, request: Request, question: str | None = None
+) -> None:
+    link.last_accessed_at = datetime.now()
+    db.add(
+        DBTable.PatientLinkAccess(
+            link_id=link.id,
+            kind=kind,
+            question=question,
+            client_ip=request.client.host if request.client else None,
+            request_id=getattr(request.state, "request_id", None),
+        )
+    )
+    db.commit()
+
+
+def resolve_link(db: Session, token: str) -> DBTable.PatientLink:
+    link = db.query(DBTable.PatientLink).filter(DBTable.PatientLink.token == token).first()
+    if link is None:
+        raise HTTPException(status_code=404, detail="링크를 찾을 수 없습니다.")
+    if link_status(link) != "active":
+        raise HTTPException(status_code=410, detail="이 링크는 만료되었거나 담당 의사가 종료했습니다.")
+    return link
+
+
+def latest_patient_analysis(session: DBTable.ChatSession) -> DBTable.DiagnosisResult | None:
+    for msg in reversed(session.messages or []):
+        if msg.diagnosis is not None:
+            return msg.diagnosis
+    return None
 
 
 def record_llm_calls(
@@ -402,10 +563,13 @@ def graph_result_to_turn(
 
 
 def get_patient_or_404(db: Session, patient_id: int, user: DBTable.User) -> DBTable.Patient:
-    patient = (
-        db.query(DBTable.Patient).filter(DBTable.Patient.id == patient_id, DBTable.Patient.user_id == user.id).first()
-    )
+    patient = db.query(DBTable.Patient).filter(DBTable.Patient.id == patient_id).first()
     if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    allowed = patient.user_id == user.id or (
+        auth.is_admin(user) and user.hospital_unit_id is not None and patient.hospital_unit_id == user.hospital_unit_id
+    )
+    if not allowed:
         raise HTTPException(status_code=404, detail="Patient not found")
     return patient
 
@@ -450,13 +614,12 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
         if user is None:
             raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
         return auth.TokenResponse(
-            access_token=auth.create_access_token(user, settings),
-            user=auth.UserOut(id=user.id, email=user.email, full_name=user.full_name),
+            access_token=auth.create_access_token(user, settings), user=auth.UserOut.from_user(user)
         )
 
     @app.get("/auth/me", response_model=auth.UserOut)
     def me(current_user: auth.CurrentUser):
-        return auth.UserOut(id=current_user.id, email=current_user.email, full_name=current_user.full_name)
+        return auth.UserOut.from_user(current_user)
 
     # ---------------------------------------------------------------- patients
 
@@ -472,34 +635,126 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
             .first()
         )
         if existing:
-            return {"status": "found", "message": "이미 등록된 환자입니다.", "data": existing}
+            return {"status": "found", "message": "이미 등록된 환자입니다.", "data": patient_to_dict(existing)}
 
         new_patient = DBTable.Patient(
-            name=patient.name, birthDate=patient.birthDate, gender=patient.gender, user_id=current_user.id
+            name=patient.name,
+            birthDate=patient.birthDate,
+            gender=patient.gender,
+            user_id=current_user.id,
+            hospital_unit_id=current_user.hospital_unit_id,
+            patient_code=next_patient_code(db),
         )
         db.add(new_patient)
         db.commit()
         db.refresh(new_patient)
-        return {"status": "created", "message": "환자가 등록되었습니다.", "data": new_patient}
+        return {"status": "created", "message": "환자가 등록되었습니다.", "data": patient_to_dict(new_patient)}
 
     @app.get("/patients")
-    def get_patients(current_user: auth.CurrentUser, db: Session = Depends(get_db)):
-        return (
-            db.query(DBTable.Patient)
-            .filter(DBTable.Patient.user_id == current_user.id)
-            .order_by(DBTable.Patient.created_at.desc())
-            .all()
-        )
+    def get_patients(
+        current_user: auth.CurrentUser,
+        q: str | None = None,
+        gender: str | None = None,
+        scope: str = "mine",
+        db: Session = Depends(get_db),
+    ):
+        query = scoped_patients(db, current_user, scope)
+        if q:
+            pattern = f"%{q.strip()}%"
+            query = query.filter((DBTable.Patient.name.ilike(pattern)) | (DBTable.Patient.patient_code.ilike(pattern)))
+        if gender in {"M", "F"}:
+            query = query.filter(DBTable.Patient.gender == gender)
+        return [patient_to_dict(p) for p in query.order_by(DBTable.Patient.created_at.desc()).all()]
 
     @app.get("/patients/{patient_id}")
     def get_patient(patient_id: int, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
-        patient = get_patient_or_404(db, patient_id, current_user)
+        return patient_to_dict(get_patient_or_404(db, patient_id, current_user))
+
+    # ---------------------------------------------------------------- visits / timeline
+
+    @app.get("/patients/{patient_id}/visits")
+    def list_visits(patient_id: int, request: Request, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
+        settings: Settings = request.app.state.settings
+        get_patient_or_404(db, patient_id, current_user)
+        visits = (
+            db.query(DBTable.Visit)
+            .filter(DBTable.Visit.patient_id == patient_id)
+            .order_by(DBTable.Visit.visited_at.desc(), DBTable.Visit.id.desc())
+            .all()
+        )
+        return [visit_to_dict(v, settings) for v in visits]
+
+    @app.post("/patients/{patient_id}/visits")
+    def create_visit(
+        patient_id: int, body: VisitIn, request: Request, current_user: auth.CurrentUser, db: Session = Depends(get_db)
+    ):
+        settings: Settings = request.app.state.settings
+        get_patient_or_404(db, patient_id, current_user)
+        visit = DBTable.Visit(
+            patient_id=patient_id,
+            visited_at=parse_datetime(body.visited_at) or datetime.now(),
+            symptoms=body.symptoms,
+            treatment=body.treatment,
+            notes=body.notes,
+        )
+        db.add(visit)
+        db.commit()
+        db.refresh(visit)
+        return visit_to_dict(visit, settings)
+
+    @app.patch("/visits/{visit_id}")
+    def update_visit(
+        visit_id: int, body: VisitPatch, request: Request, current_user: auth.CurrentUser, db: Session = Depends(get_db)
+    ):
+        settings: Settings = request.app.state.settings
+        visit = db.query(DBTable.Visit).filter(DBTable.Visit.id == visit_id).first()
+        if visit is None:
+            raise HTTPException(status_code=404, detail="Visit not found")
+        get_patient_or_404(db, visit.patient_id, current_user)
+        if body.visited_at is not None:
+            visit.visited_at = parse_datetime(body.visited_at)
+        for field_name in ("symptoms", "treatment", "notes"):
+            value = getattr(body, field_name)
+            if value is not None:
+                setattr(visit, field_name, value)
+        db.commit()
+        db.refresh(visit)
+        return visit_to_dict(visit, settings)
+
+    @app.get("/patients/{patient_id}/timeline")
+    def patient_timeline(
+        patient_id: int, request: Request, current_user: auth.CurrentUser, db: Session = Depends(get_db)
+    ):
+        settings: Settings = request.app.state.settings
+        get_patient_or_404(db, patient_id, current_user)
+        points = []
+        for diagnosis in patient_diagnoses(db, patient_id):
+            brief = diagnosis_brief(diagnosis, settings)
+            session = diagnosis.message.session if diagnosis.message else None
+            points.append(
+                {
+                    "date": brief["created_at"],
+                    "diagnosis_id": brief["diagnosis_id"],
+                    "session_id": brief["session_id"],
+                    "visit_id": session.visit_id if session else None,
+                    "tb_probability": brief["tb_probability"],
+                    "risk_level": brief["risk_level"],
+                    "primary_label": brief["primary_label"],
+                    "mask_area_fraction": brief["mask_area_fraction"],
+                }
+            )
+        visits = (
+            db.query(DBTable.Visit)
+            .filter(DBTable.Visit.patient_id == patient_id)
+            .order_by(DBTable.Visit.visited_at.asc())
+            .all()
+        )
         return {
-            "id": patient.id,
-            "name": patient.name,
-            "birthDate": patient.birthDate,
-            "gender": patient.gender,
-            "lastVisit": patient.created_at.strftime("%Y-%m-%d") if patient.created_at else "",
+            "points": points,
+            "visits": [
+                {"id": v.id, "visited_at": v.visited_at.isoformat() if v.visited_at else None, "symptoms": v.symptoms}
+                for v in visits
+            ],
         }
 
     @app.get("/patients/{patient_id}/messages")
@@ -541,7 +796,16 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
     ):
         get_patient_or_404(db, patient_id, current_user)
         title = (body.title if body and body.title else None) or f"상담 {datetime.now():%Y-%m-%d %H:%M}"
-        session = DBTable.ChatSession(patient_id=patient_id, title=title)
+        visit_id = body.visit_id if body else None
+        if visit_id is not None:
+            visit = (
+                db.query(DBTable.Visit)
+                .filter(DBTable.Visit.id == visit_id, DBTable.Visit.patient_id == patient_id)
+                .first()
+            )
+            if visit is None:
+                raise HTTPException(status_code=404, detail="Visit not found")
+        session = DBTable.ChatSession(patient_id=patient_id, title=title, visit_id=visit_id)
         db.add(session)
         db.commit()
         db.refresh(session)
@@ -594,6 +858,369 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
             "doctor_feedback": diagnosis.doctor_feedback,
             "doctor_note": diagnosis.doctor_note,
         }
+
+    # ---------------------------------------------------------------- patient share links (doctor side)
+
+    @app.post("/patients/{patient_id}/links")
+    def create_link(
+        patient_id: int,
+        body: LinkCreate,
+        request: Request,
+        current_user: auth.CurrentUser,
+        db: Session = Depends(get_db),
+    ):
+        settings: Settings = request.app.state.settings
+        get_patient_or_404(db, patient_id, current_user)
+        session = (
+            db.query(DBTable.ChatSession)
+            .filter(DBTable.ChatSession.id == body.session_id, DBTable.ChatSession.patient_id == patient_id)
+            .first()
+        )
+        if session is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        hours = body.hours or settings.share_link_default_hours
+        link = DBTable.PatientLink(
+            token=secrets.token_urlsafe(32),
+            patient_id=patient_id,
+            session_id=session.id,
+            doctor_id=current_user.id,
+            expire_policy=body.expire_policy,
+            expires_at=datetime.now() + timedelta(hours=hours) if body.expire_policy in {"time", "both"} else None,
+            max_questions=body.max_questions if body.max_questions is not None else settings.share_link_max_questions,
+        )
+        db.add(link)
+        db.commit()
+        db.refresh(link)
+        logger.info("share link created patient=%s session=%s policy=%s", patient_id, session.id, link.expire_policy)
+        return link_to_dict(link, settings)
+
+    @app.get("/patients/{patient_id}/links")
+    def list_links(patient_id: int, request: Request, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
+        settings: Settings = request.app.state.settings
+        get_patient_or_404(db, patient_id, current_user)
+        links = (
+            db.query(DBTable.PatientLink)
+            .filter(DBTable.PatientLink.patient_id == patient_id)
+            .order_by(DBTable.PatientLink.created_at.desc())
+            .all()
+        )
+        return [link_to_dict(link, settings) for link in links]
+
+    def get_link_or_404(db: Session, link_id: int, user: DBTable.User) -> DBTable.PatientLink:
+        link = db.query(DBTable.PatientLink).filter(DBTable.PatientLink.id == link_id).first()
+        if link is None:
+            raise HTTPException(status_code=404, detail="Link not found")
+        get_patient_or_404(db, link.patient_id, user)
+        return link
+
+    @app.delete("/links/{link_id}")
+    def revoke_link(link_id: int, request: Request, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
+        settings: Settings = request.app.state.settings
+        link = get_link_or_404(db, link_id, current_user)
+        if link.revoked_at is None:
+            link.revoked_at = datetime.now()
+            db.commit()
+            db.refresh(link)
+        return link_to_dict(link, settings)
+
+    @app.get("/links/{link_id}/accesses")
+    def link_accesses(link_id: int, current_user: auth.CurrentUser, db: Session = Depends(get_db)):
+        link = get_link_or_404(db, link_id, current_user)
+        return [
+            {
+                "accessed_at": a.accessed_at.isoformat() if a.accessed_at else None,
+                "kind": a.kind,
+                "question": a.question,
+                "client_ip": a.client_ip,
+            }
+            for a in link.accesses
+        ]
+
+    # ---------------------------------------------------------------- public share endpoints (no bearer token)
+
+    def share_messages(session: DBTable.ChatSession) -> list[dict[str, Any]]:
+        out = []
+        for msg in session.messages or []:
+            if msg.role == "patient" or (msg.role == "assistant" and (msg.meta or {}).get("audience") == "patient"):
+                out.append(
+                    {
+                        "role": msg.role,
+                        "content": msg.content or "",
+                        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+                    }
+                )
+        return out
+
+    @app.get("/share/{token}")
+    @limiter.limit(lambda: app.state.settings.rate_limit_share)
+    def share_view(token: str, request: Request, db: Session = Depends(get_db)):
+        settings: Settings = request.app.state.settings
+        link = resolve_link(db, token)
+        log_link_access(db, link, "view", request)
+        session = link.session
+        diagnosis = latest_patient_analysis(session)
+        follow_ups: list[str] = []
+        for msg in reversed(session.messages or []):
+            meta = msg.meta or {}
+            if msg.role == "assistant" and meta.get("patient_follow_ups"):
+                follow_ups = list(meta["patient_follow_ups"])
+                break
+        analysis = None
+        if diagnosis is not None and diagnosis.patient_summary:
+            created = diagnosis.message.created_at if diagnosis.message else None
+            analysis = {
+                "patient_summary": diagnosis.patient_summary,
+                "overlay_url": static_url(settings, diagnosis.overlay_path),
+                "created_at": created.isoformat() if created else None,
+            }
+        return {
+            "status": "active",
+            "patient": {"name": link.patient.name},
+            "doctor": {"full_name": link.doctor.full_name if link.doctor else None},
+            "session": {
+                "title": session.title,
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+            },
+            "analysis": analysis,
+            "follow_ups": follow_ups[:2],
+            "questions_remaining": max(0, (link.max_questions or 0) - (link.questions_used or 0)),
+            "expires_at": link.expires_at.isoformat() if link.expires_at else None,
+            "messages": share_messages(session),
+        }
+
+    @app.post("/share/{token}/ask")
+    @limiter.limit(lambda: app.state.settings.rate_limit_share)
+    async def share_ask(token: str, body: ShareQuestion, request: Request, db: Session = Depends(get_db)):
+        settings: Settings = request.app.state.settings
+        link = resolve_link(db, token)
+        remaining = (link.max_questions or 0) - (link.questions_used or 0)
+        if remaining <= 0:
+            log_link_access(db, link, "denied", request, body.question)
+            raise HTTPException(status_code=429, detail="이 링크로 할 수 있는 질문 횟수를 모두 사용했습니다.")
+        session = link.session
+        request_id = getattr(request.state, "request_id", None)
+        chat_graph: ChatGraph = request.app.state.graph
+        state = graph_input(
+            session=session,
+            patient_id=link.patient_id,
+            user_id=link.doctor_id,
+            request_id=request_id,
+            text=body.question,
+            image_rel=None,
+            settings=settings,
+            prior_report=latest_report_for_session(db, session.id),
+        )
+        state["audience"] = "patient"
+        state["session_title_is_default"] = False
+        try:
+            final = await run_in_threadpool(chat_graph.run, state)
+        except llm_report.LLMError as exc:
+            logger.error("share graph failed: %s", exc, extra={"request_id": request_id})
+            raise HTTPException(status_code=503, detail="답변 생성에 실패했습니다. 잠시 후 다시 시도해주세요.") from exc
+        _, _, traces, meta = graph_result_to_turn(final)
+        meta["audience"] = "patient"
+        meta["via_link_id"] = link.id
+        answer_text = final.get("response", "")
+        db.add(DBTable.Message(session_id=session.id, role="patient", content=body.question))
+        db.commit()
+        reply = DBTable.Message(session_id=session.id, role="assistant", content=answer_text, meta=meta)
+        db.add(reply)
+        link.questions_used = (link.questions_used or 0) + 1
+        db.commit()
+        db.refresh(reply)
+        record_llm_calls(
+            db, traces, request_id=request_id, user_id=link.doctor_id, session_id=session.id, diagnosis_id=None
+        )
+        log_link_access(db, link, "question", request, body.question)
+        return {
+            "message": {
+                "id": reply.id,
+                "role": "assistant",
+                "content": answer_text,
+                "created_at": reply.created_at.isoformat() if reply.created_at else None,
+                "meta": {"follow_ups": meta.get("patient_follow_ups", []), "blocked": meta.get("blocked", False)},
+            },
+            "questions_remaining": max(0, (link.max_questions or 0) - (link.questions_used or 0)),
+        }
+
+    # ---------------------------------------------------------------- dashboard
+
+    @app.get("/dashboard/overview")
+    def dashboard_overview(
+        request: Request, current_user: auth.CurrentUser, days: int = 30, db: Session = Depends(get_db)
+    ):
+        settings: Settings = request.app.state.settings
+        days = max(1, min(days, 365))
+        since = datetime.now() - timedelta(days=days)
+        scope = "unit" if auth.is_admin(current_user) else "mine"
+        patients = scoped_patients(db, current_user, scope).all()
+        patient_ids = [p.id for p in patients]
+        diagnoses = (
+            db.query(DBTable.DiagnosisResult)
+            .join(DBTable.Message, DBTable.Message.id == DBTable.DiagnosisResult.message_id)
+            .join(DBTable.ChatSession, DBTable.ChatSession.id == DBTable.Message.session_id)
+            .filter(DBTable.ChatSession.patient_id.in_(patient_ids), DBTable.Message.created_at >= since)
+            .order_by(DBTable.Message.created_at.desc())
+            .all()
+            if patient_ids
+            else []
+        )
+        labels = {"tb_suspected": 0, "low_tb_likelihood": 0, "no_lesion_detected": 0}
+        latencies: list[float] = []
+        cost = 0.0
+        feedback = {"agree": 0, "disagree": 0}
+        by_doctor: dict[int, dict[str, Any]] = {}
+        patient_by_id = {p.id: p for p in patients}
+        for diagnosis in diagnoses:
+            ml = (diagnosis.model_raw_json or {}).get("ml_results") or {}
+            label = ml.get("primary_label")
+            if label in labels:
+                labels[label] += 1
+            llm_meta = diagnosis.llm_meta or {}
+            if llm_meta.get("latency_ms") is not None:
+                latencies.append(float(llm_meta["latency_ms"]))
+            cost += float(llm_meta.get("cost_usd") or 0.0)
+            if diagnosis.doctor_feedback is True:
+                feedback["agree"] += 1
+            elif diagnosis.doctor_feedback is False:
+                feedback["disagree"] += 1
+            session = diagnosis.message.session if diagnosis.message else None
+            patient = patient_by_id.get(session.patient_id) if session else None
+            if patient is not None:
+                row = by_doctor.setdefault(
+                    patient.user_id,
+                    {
+                        "doctor_id": patient.user_id,
+                        "analyses": 0,
+                        "llm_cost_usd": 0.0,
+                        "latencies": [],
+                        "last_active": None,
+                    },
+                )
+                row["analyses"] += 1
+                row["llm_cost_usd"] += float(llm_meta.get("cost_usd") or 0.0)
+                if llm_meta.get("latency_ms") is not None:
+                    row["latencies"].append(float(llm_meta["latency_ms"]))
+                created = (
+                    diagnosis.message.created_at.isoformat()
+                    if diagnosis.message and diagnosis.message.created_at
+                    else None
+                )
+                if created and (row["last_active"] is None or created > row["last_active"]):
+                    row["last_active"] = created
+        recent = []
+        for diagnosis in diagnoses[:10]:
+            brief = diagnosis_brief(diagnosis, settings)
+            session = diagnosis.message.session if diagnosis.message else None
+            patient = patient_by_id.get(session.patient_id) if session else None
+            recent.append(
+                {
+                    **brief,
+                    "patient_id": patient.id if patient else None,
+                    "patient_name": patient.name if patient else None,
+                }
+            )
+        overview: dict[str, Any] = {
+            "period_days": days,
+            "patients": len(patients),
+            "analyses": len(diagnoses),
+            "tb_suspected": labels["tb_suspected"],
+            "low_likelihood": labels["low_tb_likelihood"],
+            "no_lesion": labels["no_lesion_detected"],
+            "avg_latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else None,
+            "llm_cost_usd": round(cost, 6),
+            "feedback": feedback,
+            "recent": recent,
+        }
+        if auth.is_admin(current_user):
+            doctors = (
+                db.query(DBTable.User).filter(DBTable.User.hospital_unit_id == current_user.hospital_unit_id).all()
+                if current_user.hospital_unit_id is not None
+                else []
+            )
+            rows = []
+            for doctor in doctors:
+                row = by_doctor.get(
+                    doctor.id, {"analyses": 0, "llm_cost_usd": 0.0, "latencies": [], "last_active": None}
+                )
+                rows.append(
+                    {
+                        "doctor_id": doctor.id,
+                        "full_name": doctor.full_name,
+                        "role": doctor.role,
+                        "patients": sum(1 for p in patients if p.user_id == doctor.id),
+                        "analyses": row["analyses"],
+                        "llm_cost_usd": round(row["llm_cost_usd"], 6),
+                        "avg_latency_ms": round(sum(row["latencies"]) / len(row["latencies"]), 1)
+                        if row["latencies"]
+                        else None,
+                        "last_active": row["last_active"],
+                    }
+                )
+            overview["by_doctor"] = sorted(rows, key=lambda r: -r["analyses"])
+        return overview
+
+    # ---------------------------------------------------------------- admin: accounts in the unit
+
+    def admin_user_to_dict(user: DBTable.User, db: Session) -> dict[str, Any]:
+        return {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role or "doctor",
+            "is_active": user.is_active if user.is_active is not None else True,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "patients": db.query(func.count(DBTable.Patient.id)).filter(DBTable.Patient.user_id == user.id).scalar()
+            or 0,
+        }
+
+    @app.get("/admin/users")
+    def admin_list_users(admin: auth.AdminUser, db: Session = Depends(get_db)):
+        users = (
+            db.query(DBTable.User)
+            .filter(DBTable.User.hospital_unit_id == admin.hospital_unit_id)
+            .order_by(DBTable.User.created_at.asc())
+            .all()
+        )
+        return [admin_user_to_dict(u, db) for u in users]
+
+    @app.post("/admin/users", status_code=201)
+    def admin_create_user(body: AdminUserCreate, admin: auth.AdminUser, db: Session = Depends(get_db)):
+        email = body.email.lower().strip()
+        if db.query(DBTable.User).filter(DBTable.User.email == email).first():
+            raise HTTPException(status_code=409, detail="이미 존재하는 이메일입니다.")
+        user = DBTable.User(
+            email=email,
+            full_name=body.full_name,
+            hashed_password=auth.hash_password(body.password),
+            role=body.role,
+            hospital_unit_id=admin.hospital_unit_id,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return admin_user_to_dict(user, db)
+
+    @app.patch("/admin/users/{user_id}")
+    def admin_patch_user(user_id: int, body: AdminUserPatch, admin: auth.AdminUser, db: Session = Depends(get_db)):
+        user = (
+            db.query(DBTable.User)
+            .filter(DBTable.User.id == user_id, DBTable.User.hospital_unit_id == admin.hospital_unit_id)
+            .first()
+        )
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        if user.id == admin.id and body.is_active is False:
+            raise HTTPException(status_code=400, detail="자기 자신을 비활성화할 수 없습니다.")
+        if body.is_active is not None:
+            user.is_active = body.is_active
+        if body.role is not None:
+            user.role = body.role
+        if body.full_name is not None:
+            user.full_name = body.full_name
+        db.commit()
+        db.refresh(user)
+        return admin_user_to_dict(user, db)
 
     # ---------------------------------------------------------------- telemetry
 

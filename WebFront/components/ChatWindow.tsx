@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./ChatWindow.module.css";
-import { ShieldAlert, Sparkles, TriangleAlert, User } from "lucide-react";
+import { MessageCircleQuestionMark, ShieldAlert, Sparkles, TriangleAlert, User } from "lucide-react";
 import AnalysisCard from "./AnalysisCard";
 import FormattedText from "./FormattedText";
 import { resolveMediaUrl } from "@/utils/api";
@@ -94,24 +94,31 @@ export default function ChatWindow({
           {messages.map((msg, idx) => {
             const blocked = msg.role === "assistant" && msg.meta?.blocked === true;
             const followUps = msg.role === "assistant" ? followUpsOf(msg) : [];
+            // Patient questions (asked through a share link) sit on the right like the clinician's,
+            // but in their own tint so the two authors are never confused.
+            const isPatient = msg.role === "patient";
+            const bubbleClass = msg.role === "user" ? styles.userBubble : isPatient ? styles.patientBubble : styles.aiBubble;
 
             return (
               <div
                 key={keys[idx]}
-                className={`${styles.messageRow} ${msg.role === "user" ? styles.userMessage : ""}`}
+                className={`${styles.messageRow} ${msg.role === "user" || isPatient ? styles.userMessage : ""}`}
               >
                 {msg.role === "assistant" && <div className={styles.aiIcon}>AI</div>}
 
-                <div
-                  className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.aiBubble} ${
-                    blocked ? styles.blockedBubble : ""
-                  }`}
-                >
+                <div className={`${styles.messageBubble} ${bubbleClass} ${blocked ? styles.blockedBubble : ""}`}>
                   {msg.role === "user" ? (
                     <>
                       {msg.image_path && (
                         <img src={resolveMediaUrl(msg.image_path)} className={styles.messageImage} alt="업로드한 X-ray 영상" />
                       )}
+                      {msg.content && <p className={styles.messageText}>{msg.content}</p>}
+                    </>
+                  ) : isPatient ? (
+                    <>
+                      <span className={styles.patientLabel}>
+                        <MessageCircleQuestionMark size={13} aria-hidden="true" /> 환자 질문
+                      </span>
                       {msg.content && <p className={styles.messageText}>{msg.content}</p>}
                     </>
                   ) : (

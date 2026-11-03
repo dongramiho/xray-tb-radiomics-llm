@@ -16,21 +16,22 @@ interface AnalysisCardProps {
   onFeedbackSaved?: (result: FeedbackResult) => void;
 }
 
-const PRIMARY_LABEL_KO: Record<string, string> = {
+// Shared with the visits panel / dashboard / trend chart (same Korean labels everywhere).
+export const PRIMARY_LABEL_KO: Record<string, string> = {
   tb_suspected: "결핵 의심",
   low_tb_likelihood: "결핵 가능성 낮음",
   no_lesion_detected: "병변 미검출",
   lesion_detected_unclassified: "병변 검출(미분류)",
 };
 
-const RISK_KO: Record<RiskLevel, string> = { low: "낮음", moderate: "중간", high: "높음" };
+export const RISK_KO: Record<RiskLevel, string> = { low: "낮음", moderate: "중간", high: "높음" };
 const CONFIDENCE_KO: Record<RiskLevel, string> = { low: "낮음", moderate: "보통", high: "높음" };
 
 type ImageView = "overlay" | "original" | "mask";
 
 type Audience = "doctor" | "patient";
 
-function labelKo(label: string): string {
+export function labelKo(label: string): string {
   return PRIMARY_LABEL_KO[label] ?? label;
 }
 

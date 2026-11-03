@@ -8,8 +8,22 @@ from sqlalchemy.orm import relationship
 from database import Base
 
 
+class HospitalUnit(Base):
+    """A hospital / department: the tenancy boundary for accounts and patients."""
+
+    __tablename__ = "hospital_units"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True)
+    name = Column(String)
+    created_at = Column(DateTime, default=datetime.now)
+
+    users = relationship("User", back_populates="hospital_unit")
+    patients = relationship("Patient", back_populates="hospital_unit")
+
+
 class User(Base):
-    """A clinician account."""
+    """A clinician (role=doctor) or unit administrator (role=admin) account."""
 
     __tablename__ = "users"
 
@@ -17,7 +31,12 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     full_name = Column(String)
+    role = Column(String, default="doctor")  # doctor | admin
+    is_active = Column(Boolean, default=True)
+    hospital_unit_id = Column(Integer, ForeignKey("hospital_units.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
 
+    hospital_unit = relationship("HospitalUnit", back_populates="users")
     patients = relationship("Patient", back_populates="doctor")
 
 
@@ -26,6 +45,8 @@ class Patient(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))  # attending doctor
+    hospital_unit_id = Column(Integer, ForeignKey("hospital_units.id"), nullable=True)
+    patient_code = Column(String, unique=True, index=True, nullable=True)  # e.g. P-000042
     name = Column(String, index=True)
     birthDate = Column(String)  # YYYY-MM-DD
     gender = Column(String)  # M / F
@@ -33,7 +54,27 @@ class Patient(Base):
     created_at = Column(DateTime, default=datetime.now)
 
     doctor = relationship("User", back_populates="patients")
+    hospital_unit = relationship("HospitalUnit", back_populates="patients")
     sessions = relationship("ChatSession", back_populates="patient")
+    visits = relationship("Visit", back_populates="patient", order_by="Visit.visited_at.desc()")
+    links = relationship("PatientLink", back_populates="patient")
+
+
+class Visit(Base):
+    """A clinical visit; consultations (sessions) and their analyses hang off a visit."""
+
+    __tablename__ = "visits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
+    visited_at = Column(DateTime, default=datetime.now, index=True)
+    symptoms = Column(Text, nullable=True)
+    treatment = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    patient = relationship("Patient", back_populates="visits")
+    sessions = relationship("ChatSession", back_populates="visit")
 
 
 class ChatSession(Base):
@@ -43,11 +84,54 @@ class ChatSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"))
+    visit_id = Column(Integer, ForeignKey("visits.id"), nullable=True)
     title = Column(String)
     created_at = Column(DateTime, default=datetime.now)
 
     patient = relationship("Patient", back_populates="sessions")
+    visit = relationship("Visit", back_populates="sessions")
     messages = relationship("Message", back_populates="session", order_by="Message.created_at")
+    links = relationship("PatientLink", back_populates="session")
+
+
+class PatientLink(Base):
+    """A shareable, expiring link that lets the patient read the patient-facing explanation and ask a few questions."""
+
+    __tablename__ = "patient_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"))
+    doctor_id = Column(Integer, ForeignKey("users.id"))
+    expire_policy = Column(String, default="time")  # time | manual | both
+    expires_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    max_questions = Column(Integer, default=5)
+    questions_used = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now)
+    last_accessed_at = Column(DateTime, nullable=True)
+
+    patient = relationship("Patient", back_populates="links")
+    session = relationship("ChatSession", back_populates="links")
+    doctor = relationship("User")
+    accesses = relationship("PatientLinkAccess", back_populates="link", order_by="PatientLinkAccess.accessed_at")
+
+
+class PatientLinkAccess(Base):
+    """Audit trail of link usage: every view and every question, with time and client address."""
+
+    __tablename__ = "patient_link_accesses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    link_id = Column(Integer, ForeignKey("patient_links.id"), index=True)
+    accessed_at = Column(DateTime, default=datetime.now)
+    kind = Column(String)  # view | question | denied
+    question = Column(Text, nullable=True)
+    client_ip = Column(String, nullable=True)
+    request_id = Column(String, nullable=True)
+
+    link = relationship("PatientLink", back_populates="accesses")
 
 
 class Message(Base):
@@ -55,7 +139,7 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("chat_sessions.id"))
-    role = Column(String)  # 'user' (clinician) or 'assistant' (AI)
+    role = Column(String)  # 'user' (clinician), 'patient' (via share link) or 'assistant' (AI)
     content = Column(Text)
     image_path = Column(String, nullable=True)  # path relative to the static dir, e.g. uploads/<id>.png
     meta = Column(JSON, nullable=True)  # graph outputs: question category, follow-up suggestions, moderation

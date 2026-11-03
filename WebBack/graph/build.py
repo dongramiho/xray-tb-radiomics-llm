@@ -343,12 +343,15 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
         question = state.get("text", "")
         context = state.get("prior_report")
         retrieval = state.get("retrieval") or None
+        patient_audience = state.get("audience") == "patient"
+        system_prompt = prompts.PATIENT_QA_SYSTEM_PROMPT if patient_audience else prompts.GENERAL_SYSTEM_PROMPT
+        answer_key = "patient_summary" if patient_audience else "doctor_summary"
         if state.get("stream"):
-            user = llm_steps.build_question_prompt(question, context, retrieval)
+            user = llm_steps.build_question_prompt(question, context, retrieval, patient_audience=patient_audience)
             final_text, trace = "", None
             for kind, payload in llm_report.stream_text(
                 "question",
-                prompts.GENERAL_SYSTEM_PROMPT,
+                system_prompt,
                 user,
                 client=llm,
                 model=settings.summary_model,
@@ -360,7 +363,7 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
                     _emit({"type": "token", "text": payload})
                 else:
                     final_text, trace = payload
-            out["doctor_summary"] = final_text
+            out[answer_key] = final_text
             out["traces"] = [trace.as_dict()] if trace else []
             return out
         text, trace = llm_steps.answer_with_context(
@@ -372,8 +375,9 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
             retrieval=retrieval,
             timeout=timeout,
             max_retries=retries,
+            patient_audience=patient_audience,
         )
-        out["doctor_summary"] = text
+        out[answer_key] = text
         out["traces"] = [trace.as_dict()]
         return out
 
@@ -405,7 +409,7 @@ def build_graph(deps: GraphDeps, checkpointer: BaseCheckpointSaver | None = None
             follow_ups, trace = llm_steps.suggest_follow_ups(
                 report,
                 state.get("text", ""),
-                state.get("doctor_summary", ""),
+                state.get("doctor_summary") or state.get("patient_summary", ""),
                 client=llm,
                 model=settings.summary_model,
                 timeout=timeout,

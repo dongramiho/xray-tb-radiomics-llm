@@ -157,12 +157,13 @@ def answer_with_context(
     retrieval: dict[str, Any] | None,
     timeout: float = 60.0,
     max_retries: int = 2,
+    patient_audience: bool = False,
 ) -> tuple[str, LLMTrace]:
     """Non-streaming answer for follow-up / general questions with retrieved context (used by /analyze)."""
-    user = build_question_prompt(question, context_report, retrieval)
+    user = build_question_prompt(question, context_report, retrieval, patient_audience=patient_audience)
     return llm_report._guarded_text_call(  # noqa: SLF001 - shared guardrailed call
         "question",
-        prompts.GENERAL_SYSTEM_PROMPT,
+        prompts.PATIENT_QA_SYSTEM_PROMPT if patient_audience else prompts.GENERAL_SYSTEM_PROMPT,
         user,
         client=client,
         model=model,
@@ -175,9 +176,12 @@ def answer_with_context(
 
 
 def build_question_prompt(
-    question: str, context_report: dict[str, Any] | None, retrieval: dict[str, Any] | None
+    question: str,
+    context_report: dict[str, Any] | None,
+    retrieval: dict[str, Any] | None,
+    patient_audience: bool = False,
 ) -> str:
-    parts: list[str] = []
+    parts: list[str] = ["[PATIENT_AUDIENCE]"] if patient_audience else []
     if context_report:
         latest = json.dumps(_report_payload(context_report), ensure_ascii=False)
         parts.append(f"[LATEST_ANALYSIS]\n{latest}\n[END_OF_LATEST_ANALYSIS]")

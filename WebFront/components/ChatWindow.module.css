@@ -116,6 +116,27 @@
   flex: 1;
 }
 
+/* 환자가 공유 링크로 보낸 질문: 오른쪽 정렬이지만 의사 말풍선과 구분되는 틸 틴트 */
+.patientBubble {
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  border-top-right-radius: 0;
+  background: rgba(20, 184, 166, 0.12);
+  border: 1px solid rgba(20, 184, 166, 0.3);
+  color: #e4e4e7;
+  gap: 0.3rem;
+}
+
+.patientLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: fit-content;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #5eead4;
+}
+
 /* 범위 외 질문: 왼쪽에서 번지는 은은한 앰버 틴트 (가장자리 줄무늬 아님) */
 .blockedBubble {
   padding: 0.6rem 0.9rem 0.75rem;

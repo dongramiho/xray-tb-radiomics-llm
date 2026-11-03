@@ -36,6 +36,8 @@ export default function Home() {
         birthDate: pData.birthDate,
         gender: pData.gender,
         lastVisit: new Date().toLocaleDateString(),
+        patient_code: pData.patient_code ?? null,
+        doctor: pData.doctor ?? null,
       };
 
       if (result.status === "created") {

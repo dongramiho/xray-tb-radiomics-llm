@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     seed_doctor_email: str = Field(default="doctor@test.com", description="Operator-provisioned clinician login")
     seed_doctor_password: str = Field(default="changeme")
     seed_doctor_name: str = Field(default="Dr. Kim")
+    seed_hospital_code: str = Field(default="default", description="Hospital unit the seeded accounts belong to")
+    seed_hospital_name: str = Field(default="Default Hospital")
+    seed_admin_email: str = Field(default="", description="Optional unit administrator account")
+    seed_admin_password: str = Field(default="")
+    seed_admin_name: str = Field(default="Administrator")
+    frontend_base_url: str = Field(default="http://localhost:3000", description="Used to build patient share links")
+    share_link_default_hours: int = Field(default=72)
+    share_link_max_questions: int = Field(default=5)
+    rate_limit_share: str = Field(default="20/minute", description="slowapi limit for public share endpoints")
 
     # --- request handling ----------------------------------------------------------------
     rate_limit_analyze: str = Field(default="30/minute", description="slowapi limit string for POST /analyze")
@@ -99,6 +108,8 @@ class Settings(BaseSettings):
         if self.environment != "production":
             return
         problems = []
+        if self.seed_admin_password == "changeme":
+            problems.append("SEED_ADMIN_PASSWORD must be changed from the default")
         if self.jwt_secret == "dev-only-change-me" or len(self.jwt_secret) < 32:
             problems.append("JWT_SECRET must be a random string of at least 32 characters")
         if "*" in self.cors_origins:

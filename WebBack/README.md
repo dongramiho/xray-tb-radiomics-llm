@@ -4,8 +4,8 @@ FastAPI 백엔드. 실행 방법과 환경 변수는 루트 [README](../README.m
 
 | 파일 | 역할 |
 | --- | --- |
-| `main.py` | 앱 팩토리(`create_app`), 라우트, `/analyze` 흐름, 요청 ID·접근 로그 미들웨어, 속도 제한 |
-| `auth.py` | bcrypt 비밀번호, JWT 발급/검증, `CurrentUser` 의존성, 운영자 발급 계정 시드 |
+| `main.py` | 앱 팩토리(`create_app`), 라우트(환자·방문·세션·분석·공유 링크·공개 `/share`·대시보드·관리자), 요청 ID·접근 로그 미들웨어, 속도 제한 |
+| `auth.py` | bcrypt 비밀번호, JWT 발급/검증, `CurrentUser`/`AdminUser` 의존성, 병원 단위·의사·관리자 계정 시드 |
 | `inference.py` | `cxr_tb` 파이프라인 서빙 래퍼, 오버레이/마스크 저장, `INFERENCE_BACKEND=fake` |
 | `graph/` | **LangGraph 챗 파이프라인** — `build.py`(노드·라우팅·체크포인터·러너), `state.py`, `moderation.py`(부적절 질문 차단 + 시맨틱 캐시, 질문 분류), `retrievers.py`(유사 케이스, PubMed), `llm_steps.py`(환자용 설명, 일관성 검사, 후속 질문, 제목), `prompts.py` |
 | `llm_clients.py` | OpenAI / Gemini(선택) / Fake 클라이언트와 모델명 기반 라우터 |

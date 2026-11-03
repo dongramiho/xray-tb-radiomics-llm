@@ -25,6 +25,11 @@
 | `JWT_SECRET` | HS256 서명 키 | 32자 이상 무작위 문자열 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 토큰 만료 (기본 720) | |
 | `SEED_DOCTOR_EMAIL` / `_PASSWORD` / `_NAME` | 운영자가 발급하는 임상의 계정 | 기본 비밀번호(`changeme`)면 기동 거부 |
+| `SEED_HOSPITAL_CODE` / `_NAME` | 시드 계정이 속할 병원 단위 | |
+| `SEED_ADMIN_EMAIL` / `_PASSWORD` / `_NAME` | 선택: 병원 단위 관리자 (병원 전체 환자·의사별 통계·계정 발급) | 기본 비밀번호면 기동 거부 |
+| `FRONTEND_BASE_URL` | 환자 공유 링크(`/share/<token>`)의 기준 주소 | 실제 프론트 도메인 (HTTPS) |
+| `SHARE_LINK_DEFAULT_HOURS` / `SHARE_LINK_MAX_QUESTIONS` | 링크 기본 만료 시간(72h)·질문 횟수(5) | |
+| `RATE_LIMIT_SHARE` | 공개 엔드포인트 IP 당 제한 (기본 20/분) | |
 | `DATABASE_URL` | SQLAlchemy URL (`postgresql+psycopg://…`, `sqlite:///…`) | PostgreSQL 권장 |
 | `AUTO_MIGRATE` | 기동 시 Alembic 적용 (기본 true) | 멀티 워커면 `false` 로 두고 엔트리포인트에서 1회 적용 |
 | `PUBLIC_BASE_URL` | 클라이언트가 접근하는 API 주소 (오버레이 URL 생성에 사용) | 실제 도메인 |
@@ -56,7 +61,7 @@
 ## 운영 체크리스트
 
 - [ ] `ENVIRONMENT=production`, 무작위 `JWT_SECRET`, 기본 비밀번호 변경
-- [ ] HTTPS 종단 (Nginx / Caddy / 로드밸런서) 뒤에 배치, `CORS_ORIGINS` 와 `PUBLIC_BASE_URL` 을 실제 도메인으로
+- [ ] HTTPS 종단 (Nginx / Caddy / 로드밸런서) 뒤에 배치, `CORS_ORIGINS`·`PUBLIC_BASE_URL`·`FRONTEND_BASE_URL` 을 실제 도메인으로. 환자 공유 링크(`/share/*`)는 토큰이 URL 에 노출되므로 반드시 HTTPS
 - [ ] `STATIC_DIR` 과 PostgreSQL 데이터를 영속 볼륨에, 정기 백업
 - [ ] 로그(JSON, `X-Request-ID`)를 수집기로 전송. 접근 로그에는 환자 정보가 포함되지 않지만 LLM 요청 본문은 OpenAI 로 전송됨 — 데이터 처리 계약 확인
 - [ ] 리소스: 백엔드 컨테이너 메모리 2GB 이상 (TensorFlow + 모델 로드 시 ~1.2GB), CPU 2 vCPU 이상
