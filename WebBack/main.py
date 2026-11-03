@@ -35,6 +35,7 @@ import auth
 import database
 import DBTable
 import llm_report
+from graph.build import ChatGraph, GraphDeps, make_checkpointer
 from inference import AnalysisArtifacts, InferenceService, build_inference_service, new_image_id
 from logging_config import configure_logging
 from schemas import FeedbackIn, PatientCreate, SessionCreate
@@ -63,14 +64,19 @@ async def lifespan(app: FastAPI):
         app.state.llm = llm_report.build_chat_client(settings)
     if not hasattr(app.state, "kb"):
         app.state.kb = llm_report.build_knowledge_base(settings)
+    if not hasattr(app.state, "graph"):
+        deps = GraphDeps.build(settings, app.state.llm, app.state.kb, app.state.inference)
+        app.state.graph = ChatGraph(deps, make_checkpointer(settings))
     auth.seed_doctor(settings)
     logger.info(
-        "ready: env=%s inference=%s llm=%s report_model=%s summary_model=%s",
+        "ready: env=%s inference=%s llm=%s report_model=%s summary_model=%s fallback=%s graph_nodes=%d",
         settings.environment,
         app.state.inference.name,
         settings.llm_backend,
         settings.report_model,
         settings.summary_model,
+        settings.fallback_model_for("summary"),
+        len(app.state.graph.graph.get_graph().nodes),
     )
     yield
 
@@ -148,6 +154,8 @@ def message_to_dict(msg: DBTable.Message, settings: Settings) -> dict[str, Any]:
         "image_path": static_url(settings, msg.image_path),
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
     }
+    if msg.meta:
+        payload["meta"] = msg.meta
     diagnosis = msg.diagnosis
     if diagnosis is not None:
         case = diagnosis.model_raw_json or {}
@@ -160,6 +168,7 @@ def message_to_dict(msg: DBTable.Message, settings: Settings) -> dict[str, Any]:
             "report": diagnosis.report_json,
             "doctor_feedback": diagnosis.doctor_feedback,
             "doctor_note": diagnosis.doctor_note,
+            "patient_summary": diagnosis.patient_summary,
             "llm": diagnosis.llm_meta,
         }
     return payload
@@ -298,11 +307,14 @@ def persist_turn(
     artifacts: AnalysisArtifacts | None,
     report: dict[str, Any] | None,
     traces: list[llm_report.LLMTrace],
+    *,
+    patient_summary: str | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> DBTable.Message:
     """Store the user turn, the assistant turn and (for images) the diagnosis result; return the assistant message."""
     db.add(DBTable.Message(session_id=session.id, role="user", content=text, image_path=image_rel))
     db.commit()
-    ai_msg = DBTable.Message(session_id=session.id, role="assistant", content=assistant_text)
+    ai_msg = DBTable.Message(session_id=session.id, role="assistant", content=assistant_text, meta=meta)
     db.add(ai_msg)
     db.commit()
     db.refresh(ai_msg)
@@ -313,6 +325,7 @@ def persist_turn(
                 model_raw_json=artifacts.case,
                 report_json=report,
                 gpt_interpretation=assistant_text,
+                patient_summary=patient_summary,
                 overlay_path=artifacts.overlay_path,
                 mask_path=artifacts.mask_path,
                 llm_meta=llm_meta_from_traces(traces),
@@ -320,7 +333,72 @@ def persist_turn(
         )
         db.commit()
         db.refresh(ai_msg)
+    if meta and meta.get("title") and session_title_is_default(session.title):
+        session.title = meta["title"]
+        db.commit()
     return ai_msg
+
+
+def session_title_is_default(title: str | None) -> bool:
+    return not title or title.startswith(("상담 ", "Consult"))
+
+
+def graph_input(
+    *,
+    session: DBTable.ChatSession,
+    patient_id: int,
+    user_id: int,
+    request_id: str | None,
+    text: str,
+    image_rel: str | None,
+    settings: Settings,
+    prior_report: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "session_id": session.id,
+        "patient_id": patient_id,
+        "user_id": user_id,
+        "request_id": request_id,
+        "text": text,
+        "image_path": str(settings.static_dir / image_rel) if image_rel else None,
+        "image_id": Path(image_rel).stem if image_rel else None,
+        "audience": "doctor",
+        "prior_report": prior_report,
+        "session_title_is_default": session_title_is_default(session.title),
+    }
+
+
+def graph_result_to_turn(
+    final: dict[str, Any],
+) -> tuple[AnalysisArtifacts | None, dict[str, Any] | None, list[llm_report.LLMTrace], dict[str, Any]]:
+    """Unpack a finished graph state into what persist_turn needs."""
+    analysis = final.get("analysis")
+    artifacts = (
+        AnalysisArtifacts(case=analysis["case"], overlay_path=analysis["overlay_path"], mask_path=analysis["mask_path"])
+        if analysis
+        else None
+    )
+    traces = [llm_report.LLMTrace(**t) for t in final.get("traces", [])]
+    question = final.get("question") or {}
+    moderation = final.get("moderation") or {}
+    meta = {
+        "question_category": question.get("category"),
+        "follow_ups": (final.get("follow_ups") or {}).get("doctor", []),
+        "patient_follow_ups": (final.get("follow_ups") or {}).get("patient", []),
+        "blocked": bool(final.get("blocked")),
+        "block_reason": moderation.get("reason") if final.get("blocked") else None,
+        "moderation_cached": bool(moderation.get("cached")),
+        "title": final.get("title"),
+        "consistency": final.get("consistency"),
+        "safety": final.get("safety"),
+        "retrieval": {
+            "kb": [c["id"] for c in (final.get("retrieval") or {}).get("kb", [])],
+            "similar_cases": [c["image_id"] for c in (final.get("retrieval") or {}).get("similar_cases", [])],
+            "literature": [item["pmid"] for item in (final.get("retrieval") or {}).get("literature", [])],
+        },
+        "graph_stages": final.get("status_log", []),
+    }
+    return artifacts, final.get("report"), traces, meta
 
 
 def get_patient_or_404(db: Session, patient_id: int, user: DBTable.User) -> DBTable.Patient:
@@ -348,8 +426,19 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
             "environment": settings.environment,
             "inference_backend": request.app.state.inference.name,
             "llm_backend": settings.llm_backend,
+            "llm_providers": getattr(request.app.state.llm, "providers", None),
+            "fallback_models": {
+                "report": settings.fallback_model_for("report"),
+                "summary": settings.fallback_model_for("summary"),
+            },
+            "graph_nodes": sorted(n for n in request.app.state.graph.graph.get_graph().nodes if not n.startswith("__")),
             "models": request.app.state.inference.model_metadata(),
         }
+
+    @app.get("/graph")
+    def graph_definition(request: Request):
+        """Mermaid definition of the chat graph (for docs and debugging)."""
+        return {"mermaid": request.app.state.graph.mermaid()}
 
     # ---------------------------------------------------------------- auth
 
@@ -576,54 +665,44 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
         request_id = getattr(request.state, "request_id", None)
 
         image_rel: str | None = None
-        artifacts: AnalysisArtifacts | None = None
-        report: dict[str, Any] | None = None
-        traces: list[llm_report.LLMTrace] = []
-
         if file is not None:
             contents = await file.read()
             image_rel = validate_and_store_upload(contents, settings)
-            image_id = Path(image_rel).stem
-            artifacts = await run_in_threadpool(inference.analyze, settings.static_dir / image_rel, image_id)
-            report, trace = await run_in_threadpool(
-                llm_report.generate_radiomics_report,
-                artifacts.case,
-                client=llm,
-                kb=request.app.state.kb,
-                model_meta=inference.model_metadata(),
-                model=settings.report_model,
-                fallback_model=settings.report_fallback_model,
-                top_k=settings.rag_top_k,
-                timeout=settings.llm_timeout_s,
-                max_retries=settings.llm_max_retries,
+        prior_report = latest_report_for_session(db, session.id)
+        chat_graph: ChatGraph = request.app.state.graph
+        try:
+            final = await run_in_threadpool(
+                chat_graph.run,
+                graph_input(
+                    session=session,
+                    patient_id=patient_id,
+                    user_id=current_user.id,
+                    request_id=request_id,
+                    text=text,
+                    image_rel=image_rel,
+                    settings=settings,
+                    prior_report=prior_report,
+                ),
             )
-            traces.append(trace)
-            assistant_text, trace = await run_in_threadpool(
-                llm_report.summarize_for_clinician,
-                report,
-                client=llm,
-                model=settings.summary_model,
-                fallback_model=settings.summary_fallback_model,
-                clinician_note=text,
-                timeout=settings.llm_timeout_s,
-                max_retries=settings.llm_max_retries,
-            )
-            traces.append(trace)
-        else:
-            context = latest_report_for_session(db, session.id)
-            assistant_text, trace = await run_in_threadpool(
-                llm_report.answer_clinician_question,
-                text,
-                client=llm,
-                model=settings.summary_model,
-                fallback_model=settings.summary_fallback_model,
-                context_report=context,
-                timeout=settings.llm_timeout_s,
-                max_retries=settings.llm_max_retries,
-            )
-            traces.append(trace)
+        except llm_report.LLMError as exc:
+            logger.error("graph failed: %s", exc, extra={"request_id": request_id})
+            raise HTTPException(status_code=503, detail="LLM 호출에 실패했습니다. 잠시 후 다시 시도해주세요.") from exc
+        artifacts, report, traces, meta = graph_result_to_turn(final)
+        assistant_text = final.get("response", "")
+        patient_summary = final.get("patient_summary") or None
 
-        ai_msg = persist_turn(db, session, text, image_rel, assistant_text, artifacts, report, traces)
+        ai_msg = persist_turn(
+            db,
+            session,
+            text,
+            image_rel,
+            assistant_text,
+            artifacts,
+            report,
+            traces,
+            patient_summary=patient_summary,
+            meta=meta,
+        )
         record_llm_calls(
             db,
             traces,
@@ -633,10 +712,11 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
             diagnosis_id=ai_msg.diagnosis.id if ai_msg.diagnosis else None,
         )
         logger.info(
-            "analyze patient=%s session=%s image=%s label=%s cost=%s",
+            "analyze patient=%s session=%s image=%s category=%s label=%s cost=%s",
             patient_id,
             session.id,
             bool(image_rel),
+            meta.get("question_category"),
             artifacts.ml_results.get("primary_label") if artifacts else None,
             llm_meta_from_traces(traces)["cost_usd"],
             extra={"request_id": request_id, "user_id": current_user.id},
@@ -669,71 +749,57 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
         user_id = current_user.id
         session_pk = session.id
 
+        chat_graph: ChatGraph = request.app.state.graph
+
         async def event_stream():
             own_db = database.SessionLocal()
             try:
-                traces: list[llm_report.LLMTrace] = []
-                artifacts: AnalysisArtifacts | None = None
-                report: dict[str, Any] | None = None
-                if image_rel is not None:
-                    yield sse("status", {"stage": "segmenting", "message": "U-Net 으로 병변을 분할하는 중"})
-                    artifacts = await run_in_threadpool(
-                        inference.analyze, settings.static_dir / image_rel, Path(image_rel).stem
-                    )
-                    yield sse("status", {"stage": "reporting", "message": "구조화 리포트를 생성하는 중"})
-                    report, trace = await run_in_threadpool(
-                        llm_report.generate_radiomics_report,
-                        artifacts.case,
-                        client=llm,
-                        kb=request.app.state.kb,
-                        model_meta=inference.model_metadata(),
-                        model=settings.report_model,
-                        fallback_model=settings.report_fallback_model,
-                        top_k=settings.rag_top_k,
-                        timeout=settings.llm_timeout_s,
-                        max_retries=settings.llm_max_retries,
-                    )
-                    traces.append(trace)
-                    yield sse(
-                        "analysis",
-                        {
-                            "overlay_url": static_url(settings, artifacts.overlay_path),
-                            "mask_url": static_url(settings, artifacts.mask_path),
-                            "ml_results": artifacts.case.get("ml_results"),
-                            "segmentation": artifacts.case.get("segmentation"),
-                            "report": report,
-                        },
-                    )
-                    yield sse("status", {"stage": "summarizing", "message": "임상의용 요약을 작성하는 중"})
-                    generator = llm_report.stream_summary_for_clinician(
-                        report,
-                        client=llm,
-                        model=settings.summary_model,
-                        clinician_note=text,
-                        timeout=settings.llm_timeout_s,
-                    )
-                else:
-                    yield sse("status", {"stage": "answering", "message": "최근 분석을 참고해 답변하는 중"})
-                    context = latest_report_for_session(own_db, session_pk)
-                    generator = llm_report.stream_answer(
-                        text,
-                        client=llm,
-                        model=settings.summary_model,
-                        context_report=context,
-                        timeout=settings.llm_timeout_s,
-                    )
-
-                final_text, final_trace = "", None
-                async for kind, payload in iterate_in_threadpool(generator):
-                    if kind == "delta":
-                        yield sse("delta", {"text": payload})
-                    else:
-                        final_text, final_trace = payload
-                if final_trace is not None:
-                    traces.append(final_trace)
-
                 session_obj = own_db.get(DBTable.ChatSession, session_pk)
-                ai_msg = persist_turn(own_db, session_obj, text, image_rel, final_text, artifacts, report, traces)
+                prior_report = latest_report_for_session(own_db, session_pk)
+                state = graph_input(
+                    session=session_obj,
+                    patient_id=patient_id,
+                    user_id=user_id,
+                    request_id=request_id,
+                    text=text,
+                    image_rel=image_rel,
+                    settings=settings,
+                    prior_report=prior_report,
+                )
+                final: dict[str, Any] | None = None
+                async for kind, payload in iterate_in_threadpool(chat_graph.stream(state)):
+                    if kind == "status":
+                        yield sse("status", payload)
+                    elif kind == "token":
+                        yield sse("delta", {"text": payload})
+                    elif kind == "analysis":
+                        yield sse(
+                            "analysis",
+                            {
+                                "overlay_url": static_url(settings, payload.get("overlay_path")),
+                                "mask_url": static_url(settings, payload.get("mask_path")),
+                                "ml_results": payload.get("ml_results"),
+                                "segmentation": payload.get("segmentation"),
+                                "report": payload.get("report"),
+                            },
+                        )
+                    elif kind == "final":
+                        final = payload
+                if final is None:
+                    raise llm_report.LLMError("graph produced no final state")
+                artifacts, report, traces, meta = graph_result_to_turn(final)
+                ai_msg = persist_turn(
+                    own_db,
+                    session_obj,
+                    text,
+                    image_rel,
+                    final.get("response", ""),
+                    artifacts,
+                    report,
+                    traces,
+                    patient_summary=final.get("patient_summary") or None,
+                    meta=meta,
+                )
                 record_llm_calls(
                     own_db,
                     traces,

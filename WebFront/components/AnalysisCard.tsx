@@ -3,11 +3,14 @@
 import { useId, useState } from "react";
 import { ChevronDown, ChevronRight, LoaderCircle, ThumbsDown, ThumbsUp } from "lucide-react";
 import styles from "./AnalysisCard.module.css";
+import FormattedText from "./FormattedText";
 import { resolveMediaUrl, sendFeedback } from "@/utils/api";
 import type { Analysis, FeedbackResult, LlmMeta, Report, RiskLevel } from "@/types";
 
 interface AnalysisCardProps {
   analysis: Analysis;
+  /** Clinician-facing explanation (the message `content`), rendered under the card. */
+  content: string;
   /** The clinician's uploaded image (preceding user message); shown under the "원본" toggle. */
   originalImageUrl?: string;
   onFeedbackSaved?: (result: FeedbackResult) => void;
@@ -24,6 +27,8 @@ const RISK_KO: Record<RiskLevel, string> = { low: "낮음", moderate: "중간", 
 const CONFIDENCE_KO: Record<RiskLevel, string> = { low: "낮음", moderate: "보통", high: "높음" };
 
 type ImageView = "overlay" | "original" | "mask";
+
+type Audience = "doctor" | "patient";
 
 function labelKo(label: string): string {
   return PRIMARY_LABEL_KO[label] ?? label;
@@ -375,118 +380,159 @@ function FeedbackRow({
   );
 }
 
-export default function AnalysisCard({ analysis, originalImageUrl, onFeedbackSaved }: AnalysisCardProps) {
+const AUDIENCE_OPTIONS: { key: Audience; label: string; title: string }[] = [
+  { key: "doctor", label: "의사용", title: "임상의용 설명 보기" },
+  { key: "patient", label: "환자용", title: "환자용 설명 보기" },
+];
+
+// Explanation under the card: the clinician text (`content`) and, when the pipeline produced one, a
+// patient-friendly version behind a segmented toggle. Lives in the card so the choice survives streaming
+// updates and the provisional → persisted message swap (same diagnosis key).
+function ExplanationArea({ content, patientSummary }: { content: string; patientSummary?: string | null }) {
+  const [audience, setAudience] = useState<Audience>("doctor");
+  const patientText = typeof patientSummary === "string" && patientSummary.trim() !== "" ? patientSummary : null;
+  if (patientText === null) return content ? <FormattedText text={content} /> : null;
+
+  const showPatient = audience === "patient";
+  const text = showPatient ? patientText : content;
+
+  return (
+    <div className={styles.explanation}>
+      <div className={styles.viewToggle} role="group" aria-label="설명 대상 전환">
+        {AUDIENCE_OPTIONS.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            className={`${styles.viewButton} ${option.key === audience ? styles.viewActive : ""}`}
+            aria-pressed={option.key === audience}
+            title={option.title}
+            onClick={() => setAudience(option.key)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {text && <FormattedText text={text} />}
+      {showPatient && <p className={styles.patientNote}>환자에게 보여주기 전 담당 의사가 확인하세요.</p>}
+    </div>
+  );
+}
+
+export default function AnalysisCard({ analysis, content, originalImageUrl, onFeedbackSaved }: AnalysisCardProps) {
   const ml = analysis.ml_results;
   const seg = analysis.segmentation;
   const features = ml?.top_features ?? [];
   const maxImportance = features.reduce((max, f) => Math.max(max, Math.abs(f.importance)), 0);
 
   return (
-    <div className={styles.card}>
-      <ImageArea analysis={analysis} originalImageUrl={originalImageUrl} />
+    <>
+      <div className={styles.card}>
+        <ImageArea analysis={analysis} originalImageUrl={originalImageUrl} />
 
-      {ml && (
-        <div className={styles.headerRow}>
-          <span className={`${styles.riskBadge} ${riskClass(ml.risk_level)}`}>
-            위험도 {RISK_KO[ml.risk_level] ?? ml.risk_level}
-          </span>
-          <span className={styles.primaryLabel}>{labelKo(ml.primary_label)}</span>
-          {ml.tb_probability != null && (
-            <div
-              className={styles.probability}
-              role="meter"
-              aria-label="결핵 확률"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(ml.tb_probability * 100)}
-              title="결핵 확률"
-            >
-              <div className={styles.probTrack}>
-                <div
-                  className={`${styles.probFill} ${riskClass(ml.risk_level)}`}
-                  style={{ width: `${Math.min(100, Math.max(0, ml.tb_probability * 100))}%` }}
-                />
+        {ml && (
+          <div className={styles.headerRow}>
+            <span className={`${styles.riskBadge} ${riskClass(ml.risk_level)}`}>
+              위험도 {RISK_KO[ml.risk_level] ?? ml.risk_level}
+            </span>
+            <span className={styles.primaryLabel}>{labelKo(ml.primary_label)}</span>
+            {ml.tb_probability != null && (
+              <div
+                className={styles.probability}
+                role="meter"
+                aria-label="결핵 확률"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(ml.tb_probability * 100)}
+                title="결핵 확률"
+              >
+                <div className={styles.probTrack}>
+                  <div
+                    className={`${styles.probFill} ${riskClass(ml.risk_level)}`}
+                    style={{ width: `${Math.min(100, Math.max(0, ml.tb_probability * 100))}%` }}
+                  />
+                </div>
+                <span className={styles.probValue}>{percent(ml.tb_probability, 1)}</span>
               </div>
-              <span className={styles.probValue}>{percent(ml.tb_probability, 1)}</span>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
 
-      {seg && (
-        <div className={styles.segmentation}>
-          {seg.zones?.length > 0 && (
-            <div className={styles.chips} aria-label="병변 구역">
-              {seg.zones.map((zone) => (
-                <span key={zone} className={styles.chip}>
-                  {zone}
-                </span>
-              ))}
-            </div>
-          )}
-          {!seg.detected && <p className={styles.note}>분할 모델이 병변을 검출하지 못했습니다.</p>}
-          <dl className={styles.stats}>
-            <div>
-              <dt>면적 비율</dt>
-              <dd>{percent(seg.mask_area_fraction, 2)}</dd>
-            </div>
-            <div>
-              <dt>연결 성분 수</dt>
-              <dd>{seg.num_components}</dd>
-            </div>
-            <div>
-              <dt>최대 확률</dt>
-              <dd>{percent(seg.max_probability, 1)}</dd>
-            </div>
-          </dl>
-        </div>
-      )}
+        {seg && (
+          <div className={styles.segmentation}>
+            {seg.zones?.length > 0 && (
+              <div className={styles.chips} aria-label="병변 구역">
+                {seg.zones.map((zone) => (
+                  <span key={zone} className={styles.chip}>
+                    {zone}
+                  </span>
+                ))}
+              </div>
+            )}
+            {!seg.detected && <p className={styles.note}>분할 모델이 병변을 검출하지 못했습니다.</p>}
+            <dl className={styles.stats}>
+              <div>
+                <dt>면적 비율</dt>
+                <dd>{percent(seg.mask_area_fraction, 2)}</dd>
+              </div>
+              <div>
+                <dt>연결 성분 수</dt>
+                <dd>{seg.num_components}</dd>
+              </div>
+              <div>
+                <dt>최대 확률</dt>
+                <dd>{percent(seg.max_probability, 1)}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
 
-      {features.length > 0 && (
-        <section className={styles.section}>
-          <h4 className={styles.sectionTitle}>주요 기여 특징</h4>
-          <table className={styles.featureTable}>
-            <thead>
-              <tr>
-                <th scope="col">특징</th>
-                <th scope="col">값</th>
-                <th scope="col">중요도</th>
-              </tr>
-            </thead>
-            <tbody>
-              {features.map((f) => (
-                <tr key={f.feature}>
-                  <td className={styles.featureName}>{stripFeaturePrefix(f.feature)}</td>
-                  <td className={styles.featureValue}>{formatSig(f.value)}</td>
-                  <td>
-                    <div className={styles.importanceCell}>
-                      <div className={styles.importanceTrack} aria-hidden="true">
-                        <div
-                          className={styles.importanceFill}
-                          style={{
-                            width: maxImportance > 0 ? `${(Math.abs(f.importance) / maxImportance) * 100}%` : "0%",
-                          }}
-                        />
-                      </div>
-                      <span className={styles.featureValue}>{formatSig(f.importance)}</span>
-                    </div>
-                  </td>
+        {features.length > 0 && (
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>주요 기여 특징</h4>
+            <table className={styles.featureTable}>
+              <thead>
+                <tr>
+                  <th scope="col">특징</th>
+                  <th scope="col">값</th>
+                  <th scope="col">중요도</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+              </thead>
+              <tbody>
+                {features.map((f) => (
+                  <tr key={f.feature}>
+                    <td className={styles.featureName}>{stripFeaturePrefix(f.feature)}</td>
+                    <td className={styles.featureValue}>{formatSig(f.value)}</td>
+                    <td>
+                      <div className={styles.importanceCell}>
+                        <div className={styles.importanceTrack} aria-hidden="true">
+                          <div
+                            className={styles.importanceFill}
+                            style={{
+                              width: maxImportance > 0 ? `${(Math.abs(f.importance) / maxImportance) * 100}%` : "0%",
+                            }}
+                          />
+                        </div>
+                        <span className={styles.featureValue}>{formatSig(f.importance)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
 
-      {analysis.report && <ReportSection report={analysis.report} />}
+        {analysis.report && <ReportSection report={analysis.report} />}
 
-      <FeedbackRow analysis={analysis} onFeedbackSaved={onFeedbackSaved} />
+        <FeedbackRow analysis={analysis} onFeedbackSaved={onFeedbackSaved} />
 
-      {analysis.llm && (
-        <p className={styles.meta} title={`prompt ${analysis.llm.prompt_version}`}>
-          {formatLlmMeta(analysis.llm)}
-        </p>
-      )}
-    </div>
+        {analysis.llm && (
+          <p className={styles.meta} title={`prompt ${analysis.llm.prompt_version}`}>
+            {formatLlmMeta(analysis.llm)}
+          </p>
+        )}
+      </div>
+      <ExplanationArea content={content} patientSummary={analysis.patient_summary} />
+    </>
   );
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./ChatWindow.module.css";
-import { TriangleAlert, User } from "lucide-react";
+import { ShieldAlert, Sparkles, TriangleAlert, User } from "lucide-react";
 import AnalysisCard from "./AnalysisCard";
+import FormattedText from "./FormattedText";
 import { resolveMediaUrl } from "@/utils/api";
 import { Patient, Message, FeedbackResult } from "@/types";
 
@@ -13,44 +14,20 @@ interface ChatWindowProps {
   /** Slim bar rendered between the patient header and the message list (e.g. session picker). */
   toolbar?: ReactNode;
   loading?: boolean;
+  /** A send is in progress: follow-up chips are locked so a second request cannot start. */
+  busy?: boolean;
   onFeedbackSaved?: (messageId: number, result: FeedbackResult) => void;
+  /** A follow-up chip was clicked; the text goes through the same send path as a typed message. */
+  onFollowUp?: (text: string) => void;
 }
 
-const BULLET_RE = /^\s*[-•*]\s+/;
+const MAX_FOLLOW_UPS = 3;
 
-type TextGroup = { type: "ul" | "p"; lines: string[] };
-
-// Plain-text formatting without a markdown library: blank lines split paragraphs,
-// consecutive "- " / "• " lines become a bullet list, single line breaks are kept.
-function FormattedText({ text }: { text: string }) {
-  const blocks = text.split(/\n[ \t]*\n/);
-  return (
-    <div className={styles.contentBlocks}>
-      {blocks.map((block, blockIdx) => {
-        const groups: TextGroup[] = [];
-        for (const line of block.split("\n")) {
-          if (line.trim() === "") continue;
-          const type: TextGroup["type"] = BULLET_RE.test(line) ? "ul" : "p";
-          const last = groups[groups.length - 1];
-          if (last && last.type === type) last.lines.push(line);
-          else groups.push({ type, lines: [line] });
-        }
-        return groups.map((group, groupIdx) =>
-          group.type === "ul" ? (
-            <ul key={`${blockIdx}-${groupIdx}`} className={styles.bulletList}>
-              {group.lines.map((line, lineIdx) => (
-                <li key={lineIdx}>{line.replace(BULLET_RE, "")}</li>
-              ))}
-            </ul>
-          ) : (
-            <p key={`${blockIdx}-${groupIdx}`} className={styles.messageText}>
-              {group.lines.join("\n")}
-            </p>
-          ),
-        );
-      })}
-    </div>
-  );
+// Suggested next questions from the pipeline; tolerates missing / empty entries.
+function followUpsOf(msg: Message): string[] {
+  const raw = msg.meta?.follow_ups;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((q) => typeof q === "string" && q.trim() !== "").slice(0, MAX_FOLLOW_UPS);
 }
 
 // The clinician's upload that this reply analysed: the closest preceding user message's image.
@@ -74,7 +51,15 @@ function messageKeys(messages: Message[]): string[] {
   });
 }
 
-export default function ChatWindow({ messages, activePatient, toolbar, loading = false, onFeedbackSaved }: ChatWindowProps) {
+export default function ChatWindow({
+  messages,
+  activePatient,
+  toolbar,
+  loading = false,
+  busy = false,
+  onFeedbackSaved,
+  onFollowUp,
+}: ChatWindowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,50 +91,88 @@ export default function ChatWindow({ messages, activePatient, toolbar, loading =
             <p className={styles.emptyState}>아직 대화가 없습니다. X-ray 영상을 첨부하거나 질문을 입력해주세요.</p>
           )}
 
-          {messages.map((msg, idx) => (
-            <div
-              key={keys[idx]}
-              className={`${styles.messageRow} ${msg.role === "user" ? styles.userMessage : ""}`}
-            >
-              {msg.role === "assistant" && <div className={styles.aiIcon}>AI</div>}
+          {messages.map((msg, idx) => {
+            const blocked = msg.role === "assistant" && msg.meta?.blocked === true;
+            const followUps = msg.role === "assistant" ? followUpsOf(msg) : [];
 
-              <div className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.aiBubble}`}>
-                {msg.role === "user" ? (
-                  <>
-                    {msg.image_path && (
-                      <img src={resolveMediaUrl(msg.image_path)} className={styles.messageImage} alt="업로드한 X-ray 영상" />
-                    )}
-                    {msg.content && <p className={styles.messageText}>{msg.content}</p>}
-                  </>
-                ) : (
-                  <>
-                    {msg.analysis && (
-                      <AnalysisCard
-                        analysis={msg.analysis}
-                        originalImageUrl={precedingUserImage(messages, idx)}
-                        onFeedbackSaved={onFeedbackSaved ? (result) => onFeedbackSaved(msg.id, result) : undefined}
-                      />
-                    )}
+            return (
+              <div
+                key={keys[idx]}
+                className={`${styles.messageRow} ${msg.role === "user" ? styles.userMessage : ""}`}
+              >
+                {msg.role === "assistant" && <div className={styles.aiIcon}>AI</div>}
 
-                    {msg.content && <FormattedText text={msg.content} />}
+                <div
+                  className={`${styles.messageBubble} ${msg.role === "user" ? styles.userBubble : styles.aiBubble} ${
+                    blocked ? styles.blockedBubble : ""
+                  }`}
+                >
+                  {msg.role === "user" ? (
+                    <>
+                      {msg.image_path && (
+                        <img src={resolveMediaUrl(msg.image_path)} className={styles.messageImage} alt="업로드한 X-ray 영상" />
+                      )}
+                      {msg.content && <p className={styles.messageText}>{msg.content}</p>}
+                    </>
+                  ) : (
+                    <>
+                      {blocked && (
+                        <span className={styles.blockedLabel} title={msg.meta?.block_reason || undefined}>
+                          <ShieldAlert size={13} aria-hidden="true" /> 범위 외 질문
+                        </span>
+                      )}
 
-                    {msg.error && (
-                      <p className={styles.errorText} role="alert">
-                        <TriangleAlert size={14} aria-hidden="true" /> {msg.error}
-                      </p>
-                    )}
+                      {/* With an analysis the card owns the explanation text (의사용 / 환자용 toggle). */}
+                      {msg.analysis ? (
+                        <AnalysisCard
+                          analysis={msg.analysis}
+                          content={msg.content}
+                          originalImageUrl={precedingUserImage(messages, idx)}
+                          onFeedbackSaved={onFeedbackSaved ? (result) => onFeedbackSaved(msg.id, result) : undefined}
+                        />
+                      ) : (
+                        msg.content && <FormattedText text={msg.content} />
+                      )}
 
-                    {msg.streaming && (
-                      <div className={styles.streamingRow} role="status" aria-live="polite">
-                        <span className={styles.pulseDot} aria-hidden="true" />
-                        <span>{msg.status ?? "응답 생성 중..."}</span>
-                      </div>
-                    )}
-                  </>
-                )}
+                      {msg.error && (
+                        <p className={styles.errorText} role="alert">
+                          <TriangleAlert size={14} aria-hidden="true" /> {msg.error}
+                        </p>
+                      )}
+
+                      {msg.streaming && (
+                        <div className={styles.streamingRow} role="status" aria-live="polite">
+                          <span className={styles.pulseDot} aria-hidden="true" />
+                          <span>{msg.status ?? "응답 생성 중..."}</span>
+                        </div>
+                      )}
+
+                      {followUps.length > 0 && onFollowUp && (
+                        <div className={styles.followUps}>
+                          <span className={styles.followUpLabel}>
+                            <Sparkles size={12} aria-hidden="true" /> 다음 질문 제안
+                          </span>
+                          <div className={styles.followUpChips} role="group" aria-label="다음 질문 제안">
+                            {followUps.map((question, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                className={styles.followUpChip}
+                                disabled={busy}
+                                onClick={() => onFollowUp(question)}
+                              >
+                                {question}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div ref={scrollRef} />
         </div>
       </section>

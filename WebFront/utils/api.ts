@@ -236,9 +236,15 @@ function dispatchSseEvent(ev: SseEvent, handlers: StreamHandlers): boolean {
   const body = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
 
   switch (ev.event) {
-    case "status":
-      handlers.onStatus(body as StreamStatus);
+    case "status": {
+      // Stage names are open-ended (the pipeline keeps adding them); only `message` is rendered.
+      const status: StreamStatus = {
+        stage: typeof body.stage === "string" ? body.stage : "",
+        message: typeof body.message === "string" ? body.message : "",
+      };
+      handlers.onStatus(status);
       return false;
+    }
     case "analysis":
       handlers.onAnalysis(body as unknown as Analysis);
       return false;

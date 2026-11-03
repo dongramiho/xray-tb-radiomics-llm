@@ -73,6 +73,23 @@ export type Analysis = {
   doctor_feedback: boolean | null;
   doctor_note: string | null;
   llm?: LlmMeta;
+  /** Patient-friendly explanation generated alongside the clinician summary (`Message.content`). */
+  patient_summary?: string | null;
+};
+
+// How the pipeline classified the clinician's question.
+export type QuestionCategory = "analysis_request" | "follow_up" | "general_medical" | "chit_chat" | "out_of_scope";
+
+// Pipeline metadata on assistant messages. Absent on messages persisted before the LangGraph backend.
+export type MessageMeta = {
+  question_category?: QuestionCategory;
+  /** Suggested next questions; the UI offers up to three as chips. */
+  follow_ups?: string[];
+  /** The question was refused by the scope / moderation gate; `content` holds the refusal text. */
+  blocked?: boolean;
+  block_reason?: string;
+  /** Auto-generated session title, sent with the reply that produced it. */
+  title?: string | null;
 };
 
 export type Message = {
@@ -83,6 +100,7 @@ export type Message = {
   image_path?: string | null;
   created_at?: string | null;
   analysis?: Analysis;
+  meta?: MessageMeta;
   /** client-only: assistant reply is still being streamed */
   streaming?: boolean;
   /** client-only: current pipeline stage text while streaming */
@@ -105,7 +123,22 @@ export type FeedbackResult = {
   doctor_note: string | null;
 };
 
-export type StreamStage = "segmenting" | "radiomics" | "classifying" | "reporting" | "summarizing" | "answering";
+// Known pipeline stages. The server may add stages at any time, so any other string is accepted too:
+// render `StreamStatus.message` instead of switching on the stage.
+export type StreamStage =
+  | "validating"
+  | "moderating"
+  | "classifying"
+  | "retrieving"
+  | "segmenting"
+  | "radiomics"
+  | "reporting"
+  | "summarizing"
+  | "explaining"
+  | "checking"
+  | "answering"
+  | "finalizing"
+  | (string & {});
 
 export type StreamStatus = { stage: StreamStage; message: string };
 

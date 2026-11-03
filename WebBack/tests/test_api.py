@@ -75,14 +75,15 @@ def test_follow_up_question_uses_latest_report_as_context(client, sample_png):
     pid = register(client, "후속질문")
     with sample_png.open("rb") as fh:
         client.post("/analyze", data={"patient_id": pid}, files={"file": ("cxr.png", fh, "image/png")})
-    llm = client.app.state.llm
+    llm = client.app.state.llm.fake
     before = len(llm.calls)
     res = client.post("/analyze", data={"patient_id": pid, "text": "추가 검사는 뭐가 필요해?"})
     assert res.status_code == 200
     assert "analysis" not in res.json()
-    last_call = llm.calls[-1]
-    assert len(llm.calls) == before + 1
-    assert "[LATEST_ANALYSIS]" in last_call["user"] and "추가 검사는" in last_call["user"]
+    new_calls = llm.calls[before:]
+    assert new_calls, "the graph should have called the LLM"
+    question_call = next(c for c in new_calls if c["kind"] in {"complete", "stream"} and "추가 검사는" in c["user"])
+    assert "[LATEST_ANALYSIS]" in question_call["user"]
 
 
 def test_unknown_patient(client):

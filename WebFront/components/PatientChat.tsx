@@ -152,6 +152,12 @@ export default function PatientChat({ patient }: PatientChatProps) {
             : m,
         ),
       );
+      // Auto-generated session title travels with the reply: show it now, before the list refetch lands.
+      const title = assistant.meta?.title?.trim();
+      const titledSessionId = assistant.session_id ?? sessionId;
+      if (title && titledSessionId != null) {
+        setSessions((prev) => prev.map((s) => (s.id === titledSessionId ? { ...s, title } : s)));
+      }
     };
 
     const fail = (detail: string) => {
@@ -161,7 +167,8 @@ export default function PatientChat({ patient }: PatientChatProps) {
 
     try {
       await streamAnalysis(patientId, text, file, sessionId, {
-        onStatus: (status) => patchMessage(provisionalId, (m) => ({ ...m, status: status.message })),
+        // Stage names are open-ended: show whatever message the server sent (keep the last one if empty).
+        onStatus: (status) => patchMessage(provisionalId, (m) => ({ ...m, status: status.message || m.status })),
         onAnalysis: (analysis) => patchMessage(provisionalId, (m) => ({ ...m, analysis })),
         onDelta: (chunk) => patchMessage(provisionalId, (m) => ({ ...m, content: m.content + chunk })),
         onDone: finish,
@@ -193,13 +200,20 @@ export default function PatientChat({ patient }: PatientChatProps) {
     }
   };
 
+  // Follow-up chip: same path as a typed message, without an attachment.
+  const handleFollowUp = (text: string) => {
+    void handleSend(text, null);
+  };
+
   return (
     <>
       <ChatWindow
         messages={messages}
         activePatient={patient}
         loading={loadingMessages}
+        busy={busy}
         onFeedbackSaved={handleFeedbackSaved}
+        onFollowUp={handleFollowUp}
         toolbar={
           <SessionBar
             sessions={sessions}

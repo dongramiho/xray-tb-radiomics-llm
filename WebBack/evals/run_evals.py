@@ -10,6 +10,7 @@ Checks (per case):
   summary_guardrails stage-2 summary has no definitive-diagnosis language
   summary_physician  stage-2 summary defers to the physician
   summary_korean     stage-2 summary is Korean
+  patient_guardrails / patient_plain_language  patient explanation defers to the physician, no jargon
 
 Usage:
     OPENAI_API_KEY=... python evals/run_evals.py                 # real models from settings
@@ -32,6 +33,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 import guardrails  # noqa: E402
 import llm_report  # noqa: E402
+from graph import llm_steps  # noqa: E402
 from llm_schemas import RadiomicsReport  # noqa: E402
 from settings import Settings  # noqa: E402
 
@@ -43,7 +45,9 @@ def load_cases() -> list[dict]:
     return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(CASES_DIR.glob("*.json"))]
 
 
-def check_case(case: dict, report: dict, summary: str, chunk_ids: set[str]) -> dict[str, bool]:
+def check_case(
+    case: dict, report: dict, summary: str, chunk_ids: set[str], patient_summary: str | None = None
+) -> dict[str, bool]:
     ml = case["ml_results"]
     seg = case["segmentation"]
     checks: dict[str, bool] = {}
@@ -68,6 +72,12 @@ def check_case(case: dict, report: dict, summary: str, chunk_ids: set[str]) -> d
     checks["summary_guardrails"] = guard.passed
     checks["summary_physician"] = not guard.appended_disclaimer
     checks["summary_korean"] = bool(re.search(r"[가-힣]", summary))
+    if patient_summary is not None:
+        patient_guard = guardrails.check_summary(patient_summary)
+        checks["patient_guardrails"] = patient_guard.passed and not patient_guard.appended_disclaimer
+        checks["patient_plain_language"] = not any(
+            term.lower() in patient_summary.lower() for term in llm_steps.PATIENT_JARGON
+        )
     return checks
 
 
@@ -97,8 +107,11 @@ def main() -> None:
             case, client=client, kb=kb, model_meta=model_meta, model=report_model
         )
         summary, trace2 = llm_report.summarize_for_clinician(report, client=client, model=summary_model)
+        patient_summary, trace3 = llm_steps.explain_for_patient(
+            report, client=client, model=summary_model, fallback_model=None, doctor_summary=summary
+        )
         latency = time.perf_counter() - t0
-        checks = check_case(case, report, summary, kb.chunk_ids)
+        checks = check_case(case, report, summary, kb.chunk_ids, patient_summary)
         rows.append(
             {
                 "image_id": item["image_id"],
@@ -111,7 +124,7 @@ def main() -> None:
                     "report": [trace1.input_tokens, trace1.output_tokens],
                     "summary": [trace2.input_tokens, trace2.output_tokens],
                 },
-                "cost_usd": round((trace1.cost_usd or 0) + (trace2.cost_usd or 0), 6),
+                "cost_usd": round((trace1.cost_usd or 0) + (trace2.cost_usd or 0) + (trace3.cost_usd or 0), 6),
                 "models": [trace1.model, trace2.model],
                 "report_level": report.get("tb_risk_summary", {}).get("level"),
             }

@@ -8,6 +8,8 @@
   "evidence": 1.0,
   "grounded_zones": 1.0,
   "no_lesion_handled": 1.0,
+  "patient_guardrails": 1.0,
+  "patient_plain_language": 1.0,
   "recommendations": 1.0,
   "risk_consistent": 1.0,
   "schema": 1.0,
@@ -29,21 +31,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3021,
-     400
+     200
     ],
     "summary": [
      337,
      55
     ]
    },
-   "cost_usd": 0.009465,
+   "cost_usd": 0.008088,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -62,21 +66,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3038,
-     400
+     200
     ],
     "summary": [
      337,
      55
     ]
    },
-   "cost_usd": 0.009499,
+   "cost_usd": 0.008122,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -96,21 +102,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      1074,
-     400
+     200
     ],
     "summary": [
      314,
      55
     ]
    },
-   "cost_usd": 0.005562,
+   "cost_usd": 0.004176,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -129,21 +137,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      2965,
-     400
+     200
     ],
     "summary": [
      331,
      55
     ]
    },
-   "cost_usd": 0.00935,
+   "cost_usd": 0.00797,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -162,21 +172,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3036,
-     400
+     200
     ],
     "summary": [
      337,
      55
     ]
    },
-   "cost_usd": 0.009495,
+   "cost_usd": 0.008118,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -195,21 +207,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3055,
-     400
+     200
     ],
     "summary": [
      337,
      55
     ]
    },
-   "cost_usd": 0.009533,
+   "cost_usd": 0.008156,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -228,21 +242,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      2964,
-     400
+     200
     ],
     "summary": [
      331,
      55
     ]
    },
-   "cost_usd": 0.009348,
+   "cost_usd": 0.007968,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -261,21 +277,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3054,
-     400
+     200
     ],
     "summary": [
      337,
      55
     ]
    },
-   "cost_usd": 0.009531,
+   "cost_usd": 0.008154,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -294,21 +312,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3052,
-     400
+     200
     ],
     "summary": [
      337,
      55
     ]
    },
-   "cost_usd": 0.009527,
+   "cost_usd": 0.00815,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -327,21 +347,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3052,
-     400
+     200
     ],
     "summary": [
      335,
      55
     ]
    },
-   "cost_usd": 0.009526,
+   "cost_usd": 0.008148,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -360,21 +382,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3238,
-     400
+     200
     ],
     "summary": [
      348,
      55
     ]
    },
-   "cost_usd": 0.009903,
+   "cost_usd": 0.008531,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -393,21 +417,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3052,
-     400
+     200
     ],
     "summary": [
      336,
      57
     ]
    },
-   "cost_usd": 0.00953,
+   "cost_usd": 0.008153,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -426,21 +452,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3322,
-     400
+     200
     ],
     "summary": [
      348,
      55
     ]
    },
-   "cost_usd": 0.010071,
+   "cost_usd": 0.008699,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -459,21 +487,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3134,
-     400
+     200
     ],
     "summary": [
      334,
      55
     ]
    },
-   "cost_usd": 0.00969,
+   "cost_usd": 0.008312,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -492,21 +522,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3321,
-     400
+     200
     ],
     "summary": [
      347,
      55
     ]
    },
-   "cost_usd": 0.010069,
+   "cost_usd": 0.008696,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -525,21 +557,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3480,
-     400
+     200
     ],
     "summary": [
      348,
      55
     ]
    },
-   "cost_usd": 0.010387,
+   "cost_usd": 0.009015,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"
@@ -558,21 +592,23 @@
     "recommendations": true,
     "summary_guardrails": true,
     "summary_physician": true,
-    "summary_korean": true
+    "summary_korean": true,
+    "patient_guardrails": true,
+    "patient_plain_language": true
    },
    "passed": true,
    "latency_s": 0.0,
    "tokens": {
     "report": [
      3211,
-     400
+     200
     ],
     "summary": [
      334,
      55
     ]
    },
-   "cost_usd": 0.009844,
+   "cost_usd": 0.008466,
    "models": [
     "gpt-4.1",
     "gpt-4.1-mini"

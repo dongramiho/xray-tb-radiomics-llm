@@ -58,6 +58,7 @@ class Message(Base):
     role = Column(String)  # 'user' (clinician) or 'assistant' (AI)
     content = Column(Text)
     image_path = Column(String, nullable=True)  # path relative to the static dir, e.g. uploads/<id>.png
+    meta = Column(JSON, nullable=True)  # graph outputs: question category, follow-up suggestions, moderation
     created_at = Column(DateTime, default=datetime.now)
 
     session = relationship("ChatSession", back_populates="messages")
@@ -75,6 +76,7 @@ class DiagnosisResult(Base):
     model_raw_json = Column(JSON)  # case JSON: segmentation summary, radiomics features, ml_results
     report_json = Column(JSON, nullable=True)  # stage-1 structured LLM report
     gpt_interpretation = Column(Text)  # stage-2 clinician-facing summary
+    patient_summary = Column(Text, nullable=True)  # patient-friendly explanation (role-separated output)
     overlay_path = Column(String, nullable=True)  # relative to static dir
     mask_path = Column(String, nullable=True)
     doctor_feedback = Column(Boolean, nullable=True)  # clinician agreement, for later model improvement

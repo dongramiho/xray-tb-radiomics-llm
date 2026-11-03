@@ -66,6 +66,33 @@ class Settings(BaseSettings):
     llm_max_retries: int = Field(default=2, description="Retries on rate limits / transient errors before fallback")
     embedding_model: str = Field(default="text-embedding-3-small")
     rag_top_k: int = Field(default=6, description="Knowledge-base chunks injected into the report prompt")
+    google_api_key: str = Field(default="", description="Optional: enables the Gemini fallback provider")
+    fallback_provider: str = Field(default="openai", description="openai | gemini (gemini requires GOOGLE_API_KEY)")
+    gemini_fallback_model: str = Field(
+        default="gemini-2.5-flash", description="Model used when fallback_provider=gemini"
+    )
+    gemini_thinking_level: str = Field(default="low", description="Gemini thinking level for the fallback model")
+
+    # --- chat graph (LangGraph) ----------------------------------------------------------
+    graph_checkpoint_path: Path = Field(
+        default=BACKEND_DIR / "graph_checkpoints.sqlite",
+        description="SQLite file for LangGraph checkpoints with a SQLite DATABASE_URL (PostgreSQL reuses DATABASE_URL)",
+    )
+    moderation_cache_threshold: float = Field(
+        default=0.92, description="Cosine similarity to reuse a moderation decision"
+    )
+    similar_cases_csv: Path = Field(default=REPO_ROOT / "model" / "outputs" / "evaluation" / "pipeline_features.csv")
+    similar_cases_k: int = Field(default=3)
+    pubmed_enabled: bool = Field(default=True, description="Query PubMed E-utilities for literature evidence")
+    ncbi_api_key: str = Field(default="", description="Optional NCBI key: raises the PubMed rate limit (3 -> 10 req/s)")
+    pubmed_max_results: int = Field(default=3)
+    pubmed_timeout_s: float = Field(default=6.0)
+
+    def fallback_model_for(self, stage: str) -> str | None:
+        """Fallback model per stage; Gemini when configured as the fallback provider and a key is present."""
+        if self.fallback_provider == "gemini" and (self.google_api_key or self.llm_backend == "fake"):
+            return self.gemini_fallback_model
+        return self.report_fallback_model if stage == "report" else self.summary_fallback_model
 
     def validate_for_environment(self) -> None:
         """Refuse obviously unsafe production configuration early (at startup, not at first request)."""

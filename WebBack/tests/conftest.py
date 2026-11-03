@@ -37,6 +37,8 @@ def settings(tmp_path_factory, tmp_static):
             "SEED_DOCTOR_PASSWORD": SEED_PASSWORD,
             "RATE_LIMIT_ENABLED": "false",
             "MAX_UPLOAD_MB": "1",
+            "PUBMED_ENABLED": "false",
+            "GRAPH_CHECKPOINT_PATH": str(tmp_path_factory.mktemp("graph") / "checkpoints.sqlite"),
         }
     )
     from settings import Settings, get_settings
