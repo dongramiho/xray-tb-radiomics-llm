@@ -27,6 +27,12 @@ from cxr_tb.config import (
     MASK_THRESHOLD,
     MIN_COMPONENT_PX,
     MIN_LESION_AREA_FRACTION,
+    QC_ASPECT_RANGE,
+    QC_HUGE_ROI_FRACTION,
+    QC_LOW_CONFIDENCE,
+    QC_MIN_CONTRAST_STD,
+    QC_MIN_IMAGE_SIDE,
+    QC_TINY_ROI_FRACTION,
     RISK_HIGH_MIN,
     RISK_LOW_MAX,
 )
@@ -209,6 +215,88 @@ def risk_level(tb_probability: float | None) -> str:
     return "high"
 
 
+# --------------------------------------------------------------------------- quality control
+
+QC_BLOCKING_FLAGS = {"image_too_small", "low_contrast", "unusual_aspect", "huge_roi", "nan_features"}
+QC_FLAG_DESCRIPTIONS = {
+    "image_too_small": "input image is smaller than the model expects",
+    "low_contrast": "image has almost no contrast (blank or washed out)",
+    "unusual_aspect": "aspect ratio does not look like a frontal chest radiograph",
+    "tiny_roi": "segmented region is very small; texture features are unreliable",
+    "huge_roi": "segmented region is implausibly large; likely a segmentation failure",
+    "low_confidence": "segmentation confidence is low",
+    "nan_features": "some radiomics features could not be computed",
+}
+
+
+@dataclass
+class QCResult:
+    """Quality-control verdict for one analysis.
+
+    ``passed`` means the numbers can be interpreted; ``usable_for_patient`` additionally requires enough
+    confidence to show a patient-facing explanation. Either way the flags are surfaced to the LLM and the UI.
+    """
+
+    passed: bool
+    usable_for_patient: bool
+    flags: list[str]
+    details: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "usable_for_patient": self.usable_for_patient,
+            "flags": self.flags,
+            "flag_descriptions": [QC_FLAG_DESCRIPTIONS.get(f, f) for f in self.flags],
+            "details": self.details,
+        }
+
+
+def run_qc(
+    gray: np.ndarray,
+    lesion: LesionSummary,
+    features: dict[str, float] | None,
+) -> QCResult:
+    """Check the input image, the segmented region, and the feature vector for conditions that make the
+    analysis unreliable. Pure function; thresholds live in config."""
+    flags: list[str] = []
+    height, width = gray.shape[:2]
+    contrast = float(np.std(gray))
+    aspect = width / max(height, 1)
+    if min(height, width) < QC_MIN_IMAGE_SIDE:
+        flags.append("image_too_small")
+    if contrast < QC_MIN_CONTRAST_STD:
+        flags.append("low_contrast")
+    if not (QC_ASPECT_RANGE[0] <= aspect <= QC_ASPECT_RANGE[1]):
+        flags.append("unusual_aspect")
+    if lesion.detected:
+        if lesion.mask_area_fraction < QC_TINY_ROI_FRACTION:
+            flags.append("tiny_roi")
+        if lesion.mask_area_fraction > QC_HUGE_ROI_FRACTION:
+            flags.append("huge_roi")
+        if lesion.max_probability < QC_LOW_CONFIDENCE:
+            flags.append("low_confidence")
+    if features:
+        bad = [k for k, v in features.items() if v is None or not np.isfinite(v)]
+        if bad:
+            flags.append("nan_features")
+    passed = not any(f in QC_BLOCKING_FLAGS for f in flags)
+    usable_for_patient = passed and not any(f in {"tiny_roi", "low_confidence"} for f in flags)
+    return QCResult(
+        passed=passed,
+        usable_for_patient=usable_for_patient,
+        flags=flags,
+        details={
+            "image_size": [int(width), int(height)],
+            "contrast_std": round(contrast, 2),
+            "aspect_ratio": round(aspect, 3),
+            "mask_area_fraction": lesion.mask_area_fraction,
+            "max_probability": lesion.max_probability,
+            "n_features": len(features or {}),
+        },
+    )
+
+
 # --------------------------------------------------------------------------- visualisation
 
 
@@ -352,16 +440,19 @@ class AnalysisResult:
     mask: np.ndarray = field(repr=False)
     probability_map: np.ndarray = field(repr=False)
     resized_u8: np.ndarray = field(repr=False)
+    qc: QCResult | None = None
 
     def to_case_json(self) -> dict[str, Any]:
         """Serializable description of the case for storage and for the LLM report."""
         return {
+            "modality": "xray",
             "image": {
                 "id": self.image_id,
                 "width": self.image_size[0],
                 "height": self.image_size[1],
                 "model_resolution": self.lesion.model_resolution,
             },
+            "qc": self.qc.to_dict() if self.qc else None,
             "segmentation": self.lesion.to_dict(),
             "radiomics_features": self.radiomics_features,
             "ml_results": self.ml_results,
@@ -472,6 +563,12 @@ class TBPipeline:
                 "decision_basis": "A lesion region was segmented; radiomics extraction is disabled.",
             }
 
+        qc = run_qc(gray, lesion, features)
+        if not qc.passed:
+            ml["qc_warning"] = "quality control failed; interpret with caution: " + ", ".join(qc.flags)
+        elif qc.flags:
+            ml["qc_warning"] = "quality control notes: " + ", ".join(qc.flags)
+
         timings = {k: round(v, 1) for k, v in timings.items()}
         return AnalysisResult(
             image_id=image_id,
@@ -483,6 +580,7 @@ class TBPipeline:
             mask=mask,
             probability_map=probability_map,
             resized_u8=resized,
+            qc=qc,
         )
 
 

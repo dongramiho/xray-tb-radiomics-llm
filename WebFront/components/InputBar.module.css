@@ -77,3 +77,128 @@
   background: #3f3f46;
   color: #71717a;
 }
+
+.sendButton:disabled {
+  cursor: default;
+}
+
+/* ---- X-ray / CT 모드 전환 ---- */
+.modeSwitch {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  border-radius: 0.5rem;
+}
+
+.modeButton {
+  padding: 0.25rem 0.55rem;
+  border: none;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.modeButton:hover {
+  color: #e4e4e7;
+}
+
+.modeActive,
+.modeActive:hover {
+  background: #2563eb;
+  color: white;
+}
+
+/* ---- CT 파일 선택 (볼륨 + 마스크) ---- */
+.ctPickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.5rem 0.25rem 0;
+}
+
+.picker {
+  display: flex;
+  align-items: center;
+  flex: 1 1 14rem;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  background: #18181b;
+  border: 1px dashed #52525b;
+  border-radius: 0.6rem;
+}
+
+.pickerFilled {
+  border-style: solid;
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+.pickerButton {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 0.5rem;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickerButton:hover {
+  color: #e4e4e7;
+}
+
+.pickerText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pickerLabel {
+  font-size: 0.7rem;
+  color: #71717a;
+}
+
+.pickerHint {
+  font-size: 0.75rem;
+  color: #a1a1aa;
+}
+
+.pickerFile {
+  overflow: hidden;
+  font-size: 0.75rem;
+  color: #e4e4e7;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pickerClear {
+  flex-shrink: 0;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  background: #3f3f46;
+  color: #d4d4d8;
+  cursor: pointer;
+}
+
+.pickerClear:hover {
+  background: #52525b;
+  color: white;
+}
+
+.fileError {
+  margin: 0;
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  font-size: 0.72rem;
+  color: #fbbf24;
+}

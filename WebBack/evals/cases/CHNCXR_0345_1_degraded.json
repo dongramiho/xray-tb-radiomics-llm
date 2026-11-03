@@ -1,0 +1,58 @@
+{
+ "image_id": "CHNCXR_0345_1_degraded",
+ "label": 1,
+ "case": {
+  "modality": "xray",
+  "image": {
+   "id": "CHNCXR_0345_1_degraded",
+   "width": 160,
+   "height": 169,
+   "model_resolution": [
+    512,
+    512
+   ]
+  },
+  "qc": {
+   "passed": false,
+   "usable_for_patient": false,
+   "flags": [
+    "image_too_small"
+   ],
+   "flag_descriptions": [
+    "input image is smaller than the model expects"
+   ],
+   "details": {
+    "image_size": [
+     160,
+     169
+    ],
+    "contrast_std": 58.85,
+    "aspect_ratio": 0.947,
+    "mask_area_fraction": 0.0,
+    "max_probability": 0.1799,
+    "n_features": 0
+   }
+  },
+  "segmentation": {
+   "detected": false,
+   "mask_area_fraction": 0.0,
+   "num_components": 0,
+   "zones": [],
+   "components": [],
+   "max_probability": 0.1799,
+   "model_resolution": [
+    512,
+    512
+   ]
+  },
+  "radiomics_features": null,
+  "ml_results": {
+   "primary_label": "no_lesion_detected",
+   "tb_probability": null,
+   "risk_level": "low",
+   "classifier": null,
+   "decision_basis": "No lesion region above the minimum area threshold was segmented; radiomics and the TB classifier were not run.",
+   "qc_warning": "quality control failed; interpret with caution: image_too_small"
+  }
+ }
+}

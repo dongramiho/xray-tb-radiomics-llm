@@ -18,7 +18,8 @@ pip install -e ".[inference,train]"  # U-Net 재학습까지: + tensorflow-addon
 model/
 ├── config.py                    # 해상도·학습 하이퍼파라미터·경로·판정 임계값 (한 곳에서 관리)
 ├── src/
-│   ├── pipeline.py              # ★ 전처리 → U-Net → 병변 통계 → Radiomics → 분류기 (서빙/학습 공용)
+│   ├── pipeline.py              # ★ 전처리 → U-Net → 병변 통계 → Radiomics → 분류기 → QC (서빙/학습 공용)
+│   ├── ct.py                    # CT 마스크 입력 경로: 기하/라벨 QC → 3D Radiomics → 케이스 JSON (+ 합성 팬텀 생성)
 │   ├── model.py · losses.py     # U-Net 정의, BCE+Dice 손실
 │   ├── dataset.py · train.py    # tf.data 파이프라인, U-Net 학습
 │   ├── evaluate.py              # 분할 성능 (Dice / IoU, 정답 마스크 필요)
@@ -43,6 +44,9 @@ model/
 4. **게이트**: 마스크 면적이 영상의 0.1% 미만이면 `no_lesion_detected` 로 종료 (빈 마스크에서는 Radiomics 가 정의되지 않음).
 5. **Radiomics**: 512 해상도의 영상·마스크를 SimpleITK 이미지로 바로 넘겨 102개 특징 추출 (shape2D 9, first-order 18, GLCM 24, GLRLM 16, GLSZM 16, GLDM 14, NGTDM 5).
 6. **분류**: joblib 번들(estimator + feature_names + threshold + 학습 메타데이터) 로드 → `tb_probability`, `risk_level`(low <0.35 / moderate / high ≥0.65), 상위 기여 특징.
+7. **QC**: 입력 크기·대비·비율, ROI 크기(0.3% 미만 / 35% 초과), 분할 신뢰도(최대 확률 < 0.6), 특징 유효성을 검사해 `qc.passed` / `qc.usable_for_patient` / `qc.flags` 를 남깁니다. 임계값은 `config.py` 의 `QC_*`.
+
+CT 는 분할 모델이 없으므로 `ct.py` 가 외부 마스크(NIfTI, 0/1 간/2 종양)를 받아 QC(기하 일치·라벨 존재·ROI 크기·슬라이스 간격) 와 3D Radiomics(107 특징)를 수행하고, 종양 라벨이 없으면 "라벨 없음(종양 없음 아님)" 으로 보고합니다. `make_synthetic_ct()` 가 테스트용 팬텀을 만듭니다.
 
 ## 데이터 준비와 평가 (Shenzhen 공개 데이터)
 

@@ -2,6 +2,7 @@
  "image_id": "CHNCXR_0326_0",
  "label": 0,
  "case": {
+  "modality": "xray",
   "image": {
    "id": "CHNCXR_0326_0",
    "width": 3000,
@@ -10,6 +11,23 @@
     512,
     512
    ]
+  },
+  "qc": {
+   "passed": true,
+   "usable_for_patient": true,
+   "flags": [],
+   "flag_descriptions": [],
+   "details": {
+    "image_size": [
+     3000,
+     2939
+    ],
+    "contrast_std": 67.94,
+    "aspect_ratio": 1.021,
+    "mask_area_fraction": 0.013988,
+    "max_probability": 0.8514,
+    "n_features": 102
+   }
   },
   "segmentation": {
    "detected": true,

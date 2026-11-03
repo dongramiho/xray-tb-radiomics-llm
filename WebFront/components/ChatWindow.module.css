@@ -166,6 +166,16 @@
   border-radius: 0.5rem;
 }
 
+/* 미리보기가 없는 업로드 (CT 볼륨 + 마스크): 파일명·크기 한 줄 */
+.attachmentLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  word-break: break-all;
+}
+
 /* 스트리밍 진행 표시 */
 .streamingRow {
   display: flex;

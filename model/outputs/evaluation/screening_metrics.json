@@ -43,5 +43,12 @@
       "90": 0.07185
     }
   },
-  "source_csv": "/Users/socraai/Desktop/service/model/outputs/evaluation/pipeline_features.csv"
+  "source_csv": "/Users/socraai/Desktop/service/model/outputs/evaluation/pipeline_features.csv",
+  "quality_control": {
+    "qc_pass_rate": 1.0,
+    "usable_for_patient_rate": 0.9335,
+    "flag_counts": {
+      "tiny_roi": 44
+    }
+  }
 }

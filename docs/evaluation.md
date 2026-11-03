@@ -54,15 +54,28 @@ U-Net 마스크 면적 비율(영상 대비)을 TB 점수로 썼을 때:
 | 정확도 | 83.7% |
 | 혼동행렬 | TP 275 · FP 47 · TN 279 · FN 61 |
 
-## 4. 처리 속도 (Apple M-series CPU, TensorFlow 2.15)
+## 4. 품질 검사 (QC) 통과율
+
+파이프라인의 QC 단계를 662장 전체에 적용한 결과 (`screening_metrics.json` 의 `quality_control`):
+
+| 지표 | 값 |
+| --- | --- |
+| QC 통과율 (`qc.passed`) | **100%** — 662장 모두 정면 흉부 영상 조건(크기·대비·비율)과 특징 유효성을 만족 |
+| 환자용 설명 사용 가능 비율 (`usable_for_patient`) | 93.4% |
+| 플래그 분포 | `tiny_roi` 44건 (분할 영역이 영상의 0.3% 미만 → 질감 특징 신뢰도 낮음, 환자용 설명 제한) |
+
+평가셋에 포함한 160px 축소 영상은 `image_too_small` 로 QC 에 실패하며, 이 경우 리포트는 신뢰도 저하와 의사 검토를 명시합니다 (`evals/run_evals.py` 의 `qc_handling` 지표).
+
+## 5. 처리 속도 (Apple M-series CPU, TensorFlow 2.15)
 
 | 단계 | 시간 |
 | --- | --- |
 | 전처리 (3000×3000 → 512) | ~40 ms |
 | U-Net 추론 | ~300 ms |
 | PyRadiomics 102개 특징 | ~30 ms |
-| 분류기 | <5 ms |
+| 분류기 + QC | <5 ms |
 | **API `/analyze` (LLM 제외)** | **~0.3–0.5 s** |
+| CT 마스크 경로 (64×64×48 팬텀, 3D Radiomics 107개) | ~0.4 s |
 
 ## 종전 수치와의 차이
 

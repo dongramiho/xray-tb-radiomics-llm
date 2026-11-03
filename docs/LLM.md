@@ -122,11 +122,28 @@ flowchart TD
 | `recommendations` | 임상의 권고 1개 이상 |
 | `summary_guardrails` / `summary_physician` / `summary_korean` | 확정 표현 없음 · 의사 판단 귀속 · 한국어 |
 
+### LLM-as-judge 지표 (발표의 평가 지표)
+
+규칙 검사 외에 `evals/judge.py` 가 구조화 출력으로 채점합니다 (`JUDGE_MODEL`, 기본 gpt-4.1-mini; `--no-judge` 로 끌 수 있음).
+
+| 지표 | 대상 | 산출 |
+| --- | --- | --- |
+| Faithfulness | 의사용 요약 vs 케이스 JSON | 1–5 점 + 근거 없는 주장 목록 |
+| Answer Relevance | 후속 질문("추가 검사는?")에 대한 답변 | 1–5 점 |
+| Patient Understandability | 환자용 설명 | 1–5 점 + 전문용어 목록 |
+| Role Separation Accuracy | 의사용 vs 환자용 | pass/fail + 문제점 |
+| Safety Compliance | 두 설명 모두 | pass/fail + 위반 문장 (확정 진단, 치료 권고, 확률의 단정) |
+| Missing-lesion handling | `no_lesion_detected` 케이스 | "정상"이라 단정하지 않고 검토를 권고하는지 |
+| QC-failure handling | QC 플래그가 있는 케이스 | 신뢰도 저하를 명시하고 검토를 권고하는지 |
+
+케이스 18건 중 QC 실패 케이스 1건(160px 로 축소한 영상)과 미검출 케이스 1건이 이 두 처리 지표를 검사합니다.
+
 ```bash
 cd WebBack
-LLM_BACKEND=fake python evals/run_evals.py          # 배선 점검 (네트워크 없음)
-OPENAI_API_KEY=sk-... python evals/run_evals.py      # 실제 모델, evals/results.json 생성
+LLM_BACKEND=fake python evals/run_evals.py          # 배선 점검 (네트워크 없음, judge 는 결정적 가짜 판정)
+OPENAI_API_KEY=sk-... python evals/run_evals.py      # 실제 모델 + judge, evals/results.json 생성
 python evals/run_evals.py --report_model gpt-4.1-mini  # 저렴한 모델과 비교
+python evals/run_evals.py --no-judge                 # 규칙 검사만
 ```
 
 결과 파일에는 케이스별 통과 여부, 지연, 토큰이 남으므로 모델·프롬프트 변경 전후를 비교할 수 있습니다.

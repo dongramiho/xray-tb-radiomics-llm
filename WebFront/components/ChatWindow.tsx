@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import styles from "./ChatWindow.module.css";
-import { MessageCircleQuestionMark, ShieldAlert, Sparkles, TriangleAlert, User } from "lucide-react";
+import { FileBox, MessageCircleQuestionMark, ShieldAlert, Sparkles, TriangleAlert, User } from "lucide-react";
 import AnalysisCard from "./AnalysisCard";
 import FormattedText from "./FormattedText";
 import { resolveMediaUrl } from "@/utils/api";
+import { isNiftiPath } from "@/utils/format";
 import { Patient, Message, FeedbackResult } from "@/types";
 
 interface ChatWindowProps {
@@ -31,11 +32,23 @@ function followUpsOf(msg: Message): string[] {
 }
 
 // The clinician's upload that this reply analysed: the closest preceding user message's image.
+// A CT upload (NIfTI volume) cannot be shown in the browser, so it yields nothing.
 function precedingUserImage(messages: Message[], index: number): string | undefined {
   for (let i = index - 1; i >= 0; i--) {
-    if (messages[i].role === "user") return messages[i].image_path ?? undefined;
+    if (messages[i].role === "user") {
+      const path = messages[i].image_path;
+      return path && !isNiftiPath(path) ? path : undefined;
+    }
   }
   return undefined;
+}
+
+// Non-image upload summary for a user bubble: the client-side label while sending, or a generic one
+// when the persisted message points at a NIfTI file.
+function attachmentLabel(msg: Message): string | null {
+  if (msg.attachment_label) return msg.attachment_label;
+  if (msg.image_path && isNiftiPath(msg.image_path)) return "CT 볼륨 첨부";
+  return null;
 }
 
 // Keyed by diagnosis so the card keeps its toggles when the provisional streaming
@@ -88,7 +101,7 @@ export default function ChatWindow({
         <div className={styles.centeredContainer}>
           {loading && <p className={styles.emptyState}>대화를 불러오는 중...</p>}
           {!loading && messages.length === 0 && (
-            <p className={styles.emptyState}>아직 대화가 없습니다. X-ray 영상을 첨부하거나 질문을 입력해주세요.</p>
+            <p className={styles.emptyState}>아직 대화가 없습니다. X-ray 또는 CT 영상을 첨부하거나 질문을 입력해주세요.</p>
           )}
 
           {messages.map((msg, idx) => {
@@ -109,8 +122,13 @@ export default function ChatWindow({
                 <div className={`${styles.messageBubble} ${bubbleClass} ${blocked ? styles.blockedBubble : ""}`}>
                   {msg.role === "user" ? (
                     <>
-                      {msg.image_path && (
+                      {msg.image_path && !isNiftiPath(msg.image_path) && (
                         <img src={resolveMediaUrl(msg.image_path)} className={styles.messageImage} alt="업로드한 X-ray 영상" />
+                      )}
+                      {attachmentLabel(msg) && (
+                        <span className={styles.attachmentLabel}>
+                          <FileBox size={13} aria-hidden="true" /> {attachmentLabel(msg)}
+                        </span>
                       )}
                       {msg.content && <p className={styles.messageText}>{msg.content}</p>}
                     </>

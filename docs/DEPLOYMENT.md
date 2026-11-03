@@ -35,7 +35,9 @@
 | `PUBLIC_BASE_URL` | 클라이언트가 접근하는 API 주소 (오버레이 URL 생성에 사용) | 실제 도메인 |
 | `CORS_ORIGINS` | JSON 배열 | `*` 금지 |
 | `STATIC_DIR` | 업로드·결과 PNG 저장 경로 | 볼륨 마운트 |
-| `MAX_UPLOAD_MB` | 업로드 상한 (기본 20) | |
+| `MAX_UPLOAD_MB` | X-ray 업로드 상한 (기본 20) | |
+| `MAX_CT_UPLOAD_MB` | CT 볼륨·마스크(NIfTI) 업로드 상한 (기본 300) | 리버스 프록시의 본문 크기 제한도 맞출 것 |
+| `JUDGE_MODEL` | `evals/run_evals.py` 의 LLM-judge 모델 (기본 gpt-4.1-mini) | 운영과 무관 |
 | `RATE_LIMIT_ANALYZE` / `RATE_LIMIT_ENABLED` | `/analyze` IP 당 제한 (기본 30/분) | |
 | `SEGMENTATION_MODEL_PATH`, `CLASSIFIER_PATH` | 모델 파일 경로 | |
 | `INFERENCE_BACKEND`, `LLM_BACKEND` | `real` / `fake` | `fake` 불가 |

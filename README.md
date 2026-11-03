@@ -30,7 +30,7 @@
 
 | | |
 | --- | --- |
-| **입력** | 정면 흉부 X-ray (PNG/JPEG) + 임상의의 메모, 그리고 후속 질문 |
+| **입력** | 정면 흉부 X-ray (PNG/JPEG) + 임상의의 메모, 후속 질문. CT 는 볼륨 + 외부 분할 마스크(NIfTI) |
 | **출력** | 병변 오버레이 · 폐야 구역과 면적 · TB 확률과 위험도 · 상위 기여 특징 · 구조화 JSON 리포트(근거 인용 포함) · **의사용 요약(스트리밍) + 환자용 설명** · 후속 질문 제안 |
 | **실데이터 성능** | Shenzhen 662장 종단 ROC-AUC **0.897**, 민감도 81.9%, 특이도 85.6% — 합성 데이터 없이, 교차검증으로 ([상세](docs/evaluation.md)) |
 | **지연** | 업로드 → 분할 → Radiomics → 분류 **0.3–0.5초** (CPU), 이후 LLM 2회 호출 (요약은 토큰 스트리밍) |
@@ -45,7 +45,7 @@
 | 단계 | 기술 | 출력 |
 | --- | --- | --- |
 | 1. 병변 분할 | U-Net (TensorFlow/Keras, 7.8M 파라미터) | 512×512 마스크, 확률맵 |
-| 2. 게이트 + 통계 | 연결 성분 분석 | 면적 비율, 성분 수, 폐야 구역(right/left × upper/middle/lower) |
+| 2. 게이트 + 통계 + QC | 연결 성분 분석, 품질 검사 | 면적 비율, 성분 수, 폐야 구역(right/left × upper/middle/lower), QC 플래그(영상 품질·ROI 크기·신뢰도·특징 유효성) |
 | 3. 특징 추출 | PyRadiomics | 102개 정량 특징 (shape2D, first-order, GLCM, GLRLM, GLSZM, GLDM, NGTDM) |
 | 4. 분류 | Random Forest (scikit-learn, 5-fold CV ROC-AUC 0.891) | `tb_probability`, `risk_level`, 상위 기여 특징 |
 | 5. 해석 | **LangGraph 파이프라인** (18 노드) + RAG | 검증 → 부적절 질문 차단 → 질문 분류 → 지식베이스·유사 케이스·PubMed 병렬 검색 → 구조화 리포트 (gpt-4.1) → 의사용·환자용 설명 병렬 생성 → 일관성·안전성 검토 → 후속 질문·제목 |
@@ -92,7 +92,8 @@ flowchart LR
 ```
 .
 ├── model/                        # cxr_tb 패키지: 파이프라인 · 학습 · 평가 (pip install -e model[inference])
-│   ├── src/pipeline.py           # ★ 전처리 → U-Net → 게이트 → Radiomics → 분류기 (서빙/학습 공용)
+│   ├── src/pipeline.py           # ★ 전처리 → U-Net → 게이트 → Radiomics → 분류기 → QC (서빙/학습 공용)
+│   ├── src/ct.py                 # CT 마스크 입력: QC → 3D Radiomics → 케이스 JSON (분할 모델 없음)
 │   ├── src/train.py · evaluate.py                     # U-Net 학습 · Dice/IoU
 │   ├── src/build_manifest.py · extract_dataset_features.py · evaluate_screening.py · train_classifier.py
 │   ├── outputs/classifier/       # tb_classifier.joblib + classifier_report.json
@@ -106,9 +107,9 @@ flowchart LR
 │   ├── llm_clients.py            # OpenAI / Gemini(선택) / Fake 클라이언트 + 모델명 라우터
 │   ├── llm_report.py · kb.py · llm_schemas.py · guardrails.py · llm_pricing.py
 │   ├── alembic/                  # 스키마 마이그레이션
-│   ├── evals/                    # 고정 케이스 17건 + 규칙 기반 채점기
+│   ├── evals/                    # 고정 케이스 18건 + 규칙 채점 + LLM-judge (judge.py)
 │   ├── documents/                # TB 지식베이스 (tb_1 ~ tb_8.txt)
-│   └── tests/                    # pytest 58개 (fake 백엔드로 TensorFlow/OpenAI 없이 실행)
+│   └── tests/                    # pytest 67개 (fake 백엔드로 TensorFlow/OpenAI 없이 실행)
 ├── WebFront/                     # Next.js 16 · TypeScript · Tailwind (로그인, 세션, 분석 카드, 스트리밍)
 ├── scripts/                      # download_shenzhen.sh · download_models.sh
 ├── docs/                         # evaluation.md · MODEL_CARD.md · LLM.md · DEPLOYMENT.md · samples/
@@ -154,7 +155,7 @@ make test                                # pytest 41 + ESLint + tsc
 | `GET` | `/share/{token}` · `POST /share/{token}/ask` | **공개(토큰)**: 환자용 설명 열람과 제한된 질문 (만료·종료 시 410, IP 속도 제한) |
 | `GET` | `/dashboard/overview?days=` | 기간별 통계 (관리자는 의사별 사용 현황 포함) |
 | `GET/POST/PATCH` | `/admin/users` | 병원 단위 계정 발급·비활성화 (관리자 전용) |
-| `POST` | `/analyze` | `patient_id`, `text`, `file`, `session_id` multipart → 전체 파이프라인 + LLM 리포트, 이미지 없으면 후속 답변 |
+| `POST` | `/analyze` | `patient_id`, `text`, `file`, `session_id` multipart → 전체 파이프라인 + LLM 리포트, 이미지 없으면 후속 답변. `file`(NIfTI 볼륨) + `mask`(NIfTI 라벨맵) 이면 CT 경로 |
 | `POST` | `/analyze/stream` | 같은 입력, Server-Sent Events: 그래프 노드별 `status` → `analysis` → `delta`* → `done` / `error` |
 | `GET` | `/graph` | LangGraph 파이프라인의 Mermaid 정의 |
 | `GET` | `/diagnoses/{id}` · `POST /diagnoses/{id}/feedback` | 진단 상세 · 의사 피드백(동의/비동의 + 메모) |
@@ -212,7 +213,7 @@ make test                                # pytest 41 + ESLint + tsc
 | 신뢰성 | 요청 타임아웃, 429/5xx 지수 백오프 재시도, 폴백 모델. 기본은 OpenAI 대체 모델, `GOOGLE_API_KEY` + `FALLBACK_PROVIDER=gemini` 면 Gemini(thinking low) 폴백 |
 | 가드레일 | 확정 진단 표현 탐지 → 1회 재생성 → 면책 문구, 의사 판단 귀속 확인, 환자용 전문용어 검사, 구역→엽 승격 금지 |
 | 텔레메트리 | 호출마다 모델·지연·토큰·추정 비용·시도 횟수·캐시 적중·프롬프트 버전을 `llm_calls` 에 기록, `/metrics/llm` 로 집계 |
-| 평가 | 실제 영상 17건의 고정 케이스 + 11개 규칙 채점 (`evals/run_evals.py`) — 프롬프트/모델 변경 시 회귀 확인 |
+| 평가 | 실제 영상 18건의 고정 케이스(미검출·QC 실패 포함) + 11개 규칙 + **LLM-judge 7개 지표**(Faithfulness·Relevance·Understandability·Role Separation·Safety·미검출/QC 처리) (`evals/run_evals.py`) |
 | 오프라인 | `LLM_BACKEND=fake` 가 모든 스키마에 대해 케이스와 일관된 답을 생성 → 테스트·UI 개발에 키 불필요 |
 
 설계 세부와 노드별 역할은 [docs/LLM.md](docs/LLM.md).
@@ -252,7 +253,8 @@ Docker Compose 는 `WebBack/.env` 를 그대로 읽습니다. 키는 커밋하�
 - [x] UI: 분석 카드(오버레이·특징·리포트 뷰어) · 스트리밍 · 의사 피드백 · 상담 세션
 - [x] LangGraph 챗 파이프라인: 부적절 질문 차단(시맨틱 캐시) · 질문 분류 · 유사 케이스·PubMed 검색 · 의사/환자 이중 설명 · 일관성 검사 · 후속 질문 · 세션 제목 · 턴별 체크포인트
 - [x] 제품 기능: 병원 단위 계정과 관리자 역할 · 방문 기록 타임라인 · 환자 링크 공유(만료 정책·접속 로깅·제한 질문) · 환자용 공개 페이지 · 대시보드/통계 · 환자 검색
-- [ ] LLM-judge 평가 지표 (Faithfulness · Safety Compliance · Role Separation · Understandability)
+- [x] 품질 검사(QC) 단계와 신뢰도 서술 · CT 마스크 입력 경로(3D Radiomics, 라벨 부재 ≠ 종양 없음) · LLM-judge 평가 지표 7종
+- [ ] CT 분할 모델 (nnU-Net, LiTS 등 공개 데이터로 학습 필요)
 - [ ] 외부 데이터셋 검증 (Montgomery, TBX11K) 과 병변 위치 정확도 평가
 - [ ] 피드백 데이터로 분류기 재학습 루프, 모델 레지스트리
 

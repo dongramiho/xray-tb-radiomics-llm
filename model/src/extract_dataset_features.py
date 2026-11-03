@@ -41,6 +41,9 @@ META_COLUMNS = [
     "width",
     "height",
     "seconds",
+    "qc_passed",
+    "qc_usable_for_patient",
+    "qc_flags",
 ]
 
 
@@ -104,6 +107,9 @@ def main() -> None:
             "width": result.image_size[0],
             "height": result.image_size[1],
             "seconds": round(seconds, 2),
+            "qc_passed": int(result.qc.passed) if result.qc else 1,
+            "qc_usable_for_patient": int(result.qc.usable_for_patient) if result.qc else 1,
+            "qc_flags": "|".join(result.qc.flags) if result.qc else "",
         }
         if result.radiomics_features:
             record.update(result.radiomics_features)

@@ -30,9 +30,21 @@ def explain_for_patient(
     revision_note: str = "",
     timeout: float = 60.0,
     max_retries: int = 2,
+    qc_failed: bool = False,
+    qc_flags: list[str] | None = None,
 ) -> tuple[str, LLMTrace]:
-    """Patient-facing explanation of the same analysis, guardrailed like the clinician summary."""
+    """Patient-facing explanation of the same analysis, guardrailed like the clinician summary.
+
+    When QC marked the analysis as not usable for patients, the explanation says so instead of describing findings.
+    """
     user = "[PATIENT_AUDIENCE]\n" + json.dumps(_report_payload(report), ensure_ascii=False, indent=2)
+    if qc_failed:
+        user += (
+            "\n\n[QC_FAILED]\nQuality control marked this analysis as NOT reliable enough for a patient-facing result"
+            + (f" ({'; '.join(qc_flags)})" if qc_flags else "")
+            + ". Do not describe findings as results; explain that the analysis could not be completed reliably "
+            "and that the doctor will review the images directly."
+        )
     if doctor_summary:
         user += f"\n\n[CLINICIAN_SUMMARY]\n{doctor_summary}\n[END_OF_CLINICIAN_SUMMARY]"
     if revision_note:

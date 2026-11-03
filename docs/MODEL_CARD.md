@@ -20,6 +20,14 @@
 
 [docs/evaluation.md](evaluation.md) 참고. 요약: 영역 단위 분류기 5-fold ROC-AUC 0.891 ± 0.025, 종단(게이트+분류기) 이미지 단위 ROC-AUC 0.897, 민감도 81.9%, 특이도 85.6%.
 
+## 품질 검사 (QC)
+
+분석마다 입력·분할·특징을 검사해 `qc` 블록을 남깁니다. 차단 플래그(`image_too_small`, `low_contrast`, `unusual_aspect`, `huge_roi`, `nan_features`)가 있으면 `passed=false` 로 보고하고, `tiny_roi`·`low_confidence` 는 통과하되 환자용 설명에는 쓰지 않습니다(`usable_for_patient=false`). LLM 리포트는 플래그를 신뢰도 서술과 한계에 반영하고, 환자용 설명은 결과 대신 "신뢰도 낮음·의사 검토" 를 전합니다. 임계값은 `model/config.py` 의 `QC_*` 입니다.
+
+## CT 경로 (마스크 입력)
+
+CT 분할 모델은 없습니다. 외부(nnU-Net 등)에서 만든 NIfTI 라벨맵(0 배경 / 1 간 / 2 종양)과 볼륨을 받아 `model/src/ct.py` 가 기하 일치·라벨 존재·ROI 크기·슬라이스 간격을 검사하고, 종양 라벨에 3D PyRadiomics(shape·first-order·GLCM·GLRLM·GLSZM·GLDM·NGTDM 107개)를 계산해 부피·길이·HU 통계와 함께 같은 리포트 흐름으로 보냅니다. **종양 라벨이 없으면 "종양 없음"이 아니라 "라벨 없음"** 으로 보고하고 검토를 권고합니다. 분류기는 없으므로 `tb_probability` 는 null 이며 특성화만 제공합니다.
+
 ## 판정 규칙
 
 | 상황 | `primary_label` | `risk_level` |
@@ -28,6 +36,8 @@
 | 분류기 확률 < 0.5 | `low_tb_likelihood` | low (<0.35) / moderate |
 | 분류기 확률 ≥ 0.5 | `tb_suspected` | moderate / high (≥0.65) |
 | 분류기 미탑재 | `lesion_detected_unclassified` | moderate |
+| CT: 종양 라벨 있음 | `ct_lesion_characterized` | moderate (분류기 없음) |
+| CT: 종양 라벨 없음 | `ct_tumor_label_missing` | low (라벨 부재 ≠ 종양 없음) |
 
 ## 알려진 한계와 실패 양상
 

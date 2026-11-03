@@ -55,6 +55,16 @@ from settings import Settings, get_settings
 logger = logging.getLogger("webback")
 
 ALLOWED_IMAGE_FORMATS = {"PNG", "JPEG"}
+NIFTI_SUFFIXES = (".nii", ".nii.gz")
+
+
+def looks_like_nifti(filename: str | None, contents: bytes) -> bool:
+    name = (filename or "").lower()
+    if not name.endswith(NIFTI_SUFFIXES):
+        return False
+    if contents[:2] == b"\x1f\x8b":  # gzip
+        return True
+    return len(contents) > 348 and contents[344:348] in (b"n+1\0", b"ni1\0")
 
 
 # ============================================================ app lifecycle
@@ -174,6 +184,9 @@ def message_to_dict(msg: DBTable.Message, settings: Settings) -> dict[str, Any]:
             "diagnosis_id": diagnosis.id,
             "overlay_url": static_url(settings, diagnosis.overlay_path),
             "mask_url": static_url(settings, diagnosis.mask_path),
+            "modality": case.get("modality", "xray"),
+            "qc": case.get("qc"),
+            "image": case.get("image"),
             "ml_results": case.get("ml_results"),
             "segmentation": case.get("segmentation"),
             "report": diagnosis.report_json,
@@ -426,6 +439,19 @@ def sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def validate_and_store_nifti(contents: bytes, filename: str | None, settings: Settings, kind: str) -> str:
+    """Validate a NIfTI volume / label map under the CT size limit; return the path relative to static."""
+    limit = settings.max_ct_upload_mb * 1024 * 1024
+    if len(contents) > limit:
+        raise HTTPException(status_code=413, detail=f"CT {kind} exceeds {settings.max_ct_upload_mb} MB")
+    if not looks_like_nifti(filename, contents):
+        raise HTTPException(status_code=400, detail=f"CT {kind} must be a NIfTI file (.nii or .nii.gz)")
+    ext = ".nii.gz" if contents[:2] == b"\x1f\x8b" else ".nii"
+    relative = f"uploads/{new_image_id()}_{kind}{ext}"
+    (settings.static_dir / relative).write_bytes(contents)
+    return relative
+
+
 def validate_and_store_upload(contents: bytes, settings: Settings) -> str:
     """Validate the upload is a real PNG/JPEG under the size limit; return the path relative to static."""
     limit = settings.max_upload_mb * 1024 * 1024
@@ -446,6 +472,24 @@ def validate_and_store_upload(contents: bytes, settings: Settings) -> str:
     relative = f"uploads/{new_image_id()}.{ext}"
     (settings.static_dir / relative).write_bytes(contents)
     return relative
+
+
+async def store_analysis_uploads(
+    file: UploadFile | None, mask: UploadFile | None, settings: Settings
+) -> tuple[str | None, str | None]:
+    """Store the uploaded image (PNG/JPEG) or CT volume + mask (NIfTI); return (image_rel, mask_rel)."""
+    if file is None:
+        if mask is not None:
+            raise HTTPException(status_code=400, detail="A CT mask needs the CT volume as `file`")
+        return None, None
+    contents = await file.read()
+    if mask is not None or (file.filename or "").lower().endswith(NIFTI_SUFFIXES):
+        if mask is None:
+            raise HTTPException(status_code=400, detail="CT volumes need a NIfTI label map as `mask`")
+        image_rel = validate_and_store_nifti(contents, file.filename, settings, "volume")
+        mask_rel = validate_and_store_nifti(await mask.read(), mask.filename, settings, "mask")
+        return image_rel, mask_rel
+    return validate_and_store_upload(contents, settings), None
 
 
 def latest_report_for_session(db: Session, session_id: int) -> dict[str, Any] | None:
@@ -514,7 +558,11 @@ def graph_input(
     image_rel: str | None,
     settings: Settings,
     prior_report: dict[str, Any] | None,
+    mask_rel: str | None = None,
 ) -> dict[str, Any]:
+    image_id = None
+    if image_rel:
+        image_id = Path(image_rel).name.split(".")[0]
     return {
         "session_id": session.id,
         "patient_id": patient_id,
@@ -522,7 +570,9 @@ def graph_input(
         "request_id": request_id,
         "text": text,
         "image_path": str(settings.static_dir / image_rel) if image_rel else None,
-        "image_id": Path(image_rel).stem if image_rel else None,
+        "mask_path": str(settings.static_dir / mask_rel) if mask_rel else None,
+        "modality": "ct" if mask_rel else "xray",
+        "image_id": image_id,
         "audience": "doctor",
         "prior_report": prior_report,
         "session_title_is_default": session_title_is_default(session.title),
@@ -1279,6 +1329,7 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
         text: str = Form(""),
         session_id: int | None = Form(None),
         file: UploadFile | None = File(None),
+        mask: UploadFile | None = File(None),
         db: Session = Depends(get_db),
         inference: InferenceService = Depends(get_inference),
         llm: llm_report.ChatClient = Depends(get_llm),
@@ -1291,10 +1342,7 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
         session = resolve_session(db, patient_id, session_id)
         request_id = getattr(request.state, "request_id", None)
 
-        image_rel: str | None = None
-        if file is not None:
-            contents = await file.read()
-            image_rel = validate_and_store_upload(contents, settings)
+        image_rel, mask_rel = await store_analysis_uploads(file, mask, settings)
         prior_report = latest_report_for_session(db, session.id)
         chat_graph: ChatGraph = request.app.state.graph
         try:
@@ -1309,6 +1357,7 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
                     image_rel=image_rel,
                     settings=settings,
                     prior_report=prior_report,
+                    mask_rel=mask_rel,
                 ),
             )
         except llm_report.LLMError as exc:
@@ -1359,6 +1408,7 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
         text: str = Form(""),
         session_id: int | None = Form(None),
         file: UploadFile | None = File(None),
+        mask: UploadFile | None = File(None),
         db: Session = Depends(get_db),
         inference: InferenceService = Depends(get_inference),
         llm: llm_report.ChatClient = Depends(get_llm),
@@ -1370,8 +1420,7 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
             raise HTTPException(status_code=400, detail="Provide a message, an image, or both")
         get_patient_or_404(db, patient_id, current_user)
         session = resolve_session(db, patient_id, session_id)
-        contents = await file.read() if file is not None else None
-        image_rel = validate_and_store_upload(contents, settings) if contents is not None else None
+        image_rel, mask_rel = await store_analysis_uploads(file, mask, settings)
         request_id = getattr(request.state, "request_id", None)
         user_id = current_user.id
         session_pk = session.id
@@ -1392,6 +1441,7 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
                     image_rel=image_rel,
                     settings=settings,
                     prior_report=prior_report,
+                    mask_rel=mask_rel,
                 )
                 final: dict[str, Any] | None = None
                 async for kind, payload in iterate_in_threadpool(chat_graph.stream(state)):
@@ -1405,6 +1455,9 @@ def register_routes(app: FastAPI, limiter: Limiter) -> None:
                             {
                                 "overlay_url": static_url(settings, payload.get("overlay_path")),
                                 "mask_url": static_url(settings, payload.get("mask_path")),
+                                "modality": payload.get("modality", "xray"),
+                                "qc": payload.get("qc"),
+                                "image": payload.get("image"),
                                 "ml_results": payload.get("ml_results"),
                                 "segmentation": payload.get("segmentation"),
                                 "report": payload.get("report"),

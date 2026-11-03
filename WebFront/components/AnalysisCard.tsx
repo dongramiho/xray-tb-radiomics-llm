@@ -1,11 +1,23 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ChevronDown, ChevronRight, LoaderCircle, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ChevronDown, ChevronRight, LoaderCircle, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
 import styles from "./AnalysisCard.module.css";
 import FormattedText from "./FormattedText";
 import { resolveMediaUrl, sendFeedback } from "@/utils/api";
-import type { Analysis, FeedbackResult, LlmMeta, Report, RiskLevel } from "@/types";
+import type {
+  Analysis,
+  CtLabelName,
+  CtLabelStats,
+  CtSegmentationSummary,
+  FeedbackResult,
+  LlmMeta,
+  Modality,
+  QcResult,
+  Report,
+  RiskLevel,
+  SegmentationSummary,
+} from "@/types";
 
 interface AnalysisCardProps {
   analysis: Analysis;
@@ -22,10 +34,36 @@ export const PRIMARY_LABEL_KO: Record<string, string> = {
   low_tb_likelihood: "결핵 가능성 낮음",
   no_lesion_detected: "병변 미검출",
   lesion_detected_unclassified: "병변 검출(미분류)",
+  ct_lesion_characterized: "CT 병변 특성화",
+  ct_tumor_label_missing: "종양 라벨 없음 (종양 없음 아님)",
 };
 
 export const RISK_KO: Record<RiskLevel, string> = { low: "낮음", moderate: "중간", high: "높음" };
 const CONFIDENCE_KO: Record<RiskLevel, string> = { low: "낮음", moderate: "보통", high: "높음" };
+
+export const MODALITY_KO: Record<Modality, string> = { xray: "X-ray", ct: "CT" };
+
+const CT_LABEL_KO: Record<CtLabelName, string> = { liver: "간", tumor: "종양" };
+
+// Known QC flags → Korean. Unknown flags fall back to the server's own description.
+const QC_FLAG_KO: Record<string, string> = {
+  image_too_small: "입력 영상이 너무 작음",
+  low_contrast: "대비가 거의 없음",
+  unusual_aspect: "정면 흉부 영상 비율이 아님",
+  tiny_roi: "분할 영역이 매우 작음",
+  huge_roi: "분할 영역이 비정상적으로 큼",
+  low_confidence: "분할 신뢰도 낮음",
+  nan_features: "일부 특징 계산 실패",
+  geometry_mismatch: "마스크와 볼륨의 크기/간격 불일치",
+  tumor_label_missing: "종양 라벨 없음 (종양 없음 아님)",
+  liver_label_missing: "간 라벨 없음",
+  coarse_slices: "슬라이스 간격이 큼",
+  not_3d: "3차원 볼륨이 아님",
+};
+
+type QcVerdict = "pass" | "warn" | "fail";
+
+const QC_VERDICT_KO: Record<QcVerdict, string> = { pass: "QC 통과", warn: "QC 주의", fail: "QC 실패" };
 
 type ImageView = "overlay" | "original" | "mask";
 
@@ -35,14 +73,58 @@ export function labelKo(label: string): string {
   return PRIMARY_LABEL_KO[label] ?? label;
 }
 
+/** Records persisted before CT support carry no `modality`; they are all X-rays. */
+export function modalityOf(analysis: Analysis): Modality {
+  return analysis.modality ?? "xray";
+}
+
+function isCtSegmentation(seg: SegmentationSummary): seg is CtSegmentationSummary {
+  return "labels_present" in seg;
+}
+
+function qcVerdict(qc: QcResult): QcVerdict {
+  if (!qc.passed) return "fail";
+  return (qc.flags?.length ?? 0) === 0 ? "pass" : "warn";
+}
+
+// One line per flag: Korean for known flags, otherwise the server's description (same index), then the raw key.
+export function qcFlagLines(qc: QcResult): string[] {
+  const flags = qc.flags ?? [];
+  const descriptions = qc.flag_descriptions ?? [];
+  const lines = flags.map((flag, i) => QC_FLAG_KO[flag] ?? descriptions[i] ?? flag);
+  // Descriptions beyond the flag list (defensive: the server should keep both arrays aligned).
+  for (let i = flags.length; i < descriptions.length; i++) lines.push(descriptions[i]);
+  return lines;
+}
+
 function riskClass(level: RiskLevel | undefined): string {
   if (level === "high") return styles.riskHigh;
   if (level === "moderate") return styles.riskModerate;
   return styles.riskLow;
 }
 
+function qcClass(verdict: QcVerdict): string {
+  if (verdict === "fail") return styles.riskHigh;
+  if (verdict === "warn") return styles.riskModerate;
+  return styles.riskLow;
+}
+
 function percent(fraction: number, digits: number): string {
   return `${(fraction * 100).toFixed(digits)}%`;
+}
+
+// 12.345 + "ml" → "12.3 ml"; missing / non-finite → "–".
+function formatUnit(value: number | null | undefined, unit: string, digits = 1): string {
+  if (value == null || !Number.isFinite(value)) return "–";
+  return `${value.toFixed(digits)} ${unit}`;
+}
+
+// "52.1 ± 18.3 HU" (std omitted when absent).
+function formatHu(stats: CtLabelStats | undefined): string {
+  if (!stats || stats.mean_hu == null || !Number.isFinite(stats.mean_hu)) return "–";
+  const mean = stats.mean_hu.toFixed(1);
+  const std = stats.std_hu != null && Number.isFinite(stats.std_hu) ? ` ± ${stats.std_hu.toFixed(1)}` : "";
+  return `${mean}${std} HU`;
 }
 
 // 3 significant digits without scientific notation for ordinary magnitudes (12345 → "12300", 0.0012345 → "0.00123").
@@ -69,11 +151,18 @@ function stripFeaturePrefix(name: string): string {
 }
 
 function ImageArea({ analysis, originalImageUrl }: { analysis: Analysis; originalImageUrl?: string }) {
+  const ct = modalityOf(analysis) === "ct";
   const views: { key: ImageView; label: string; url: string; alt: string }[] = [];
   if (analysis.overlay_url) {
-    views.push({ key: "overlay", label: "오버레이", url: analysis.overlay_url, alt: "병변 분할 오버레이 영상" });
+    views.push({
+      key: "overlay",
+      label: "오버레이",
+      url: analysis.overlay_url,
+      alt: ct ? "CT 축상 슬라이스 분할 오버레이 (종양 빨강, 간 파랑)" : "병변 분할 오버레이 영상",
+    });
   }
-  if (originalImageUrl) {
+  // The CT "original" is a NIfTI volume the browser cannot render; `mask_url` is null for CT.
+  if (originalImageUrl && !ct) {
     views.push({ key: "original", label: "원본", url: originalImageUrl, alt: "업로드한 원본 X-ray 영상" });
   }
   if (analysis.mask_url) {
@@ -381,6 +470,88 @@ function FeedbackRow({
   );
 }
 
+// Badge next to the risk level; with flags it is a button that toggles the flag list under the header row.
+function QcBadge({ qc, open, listId, onToggle }: { qc: QcResult; open: boolean; listId: string; onToggle: () => void }) {
+  const verdict = qcVerdict(qc);
+  const lines = qcFlagLines(qc);
+  const className = `${styles.riskBadge} ${qcClass(verdict)}`;
+  if (lines.length === 0) {
+    return (
+      <span className={className} title={verdict === "pass" ? "품질 검사에서 문제가 발견되지 않았습니다." : QC_VERDICT_KO[verdict]}>
+        {QC_VERDICT_KO[verdict]}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={`${className} ${styles.qcButton}`}
+      title={lines.join("\n")}
+      aria-expanded={open}
+      aria-controls={listId}
+      onClick={onToggle}
+    >
+      {QC_VERDICT_KO[verdict]} · {lines.length}
+    </button>
+  );
+}
+
+const CT_LABEL_ORDER: CtLabelName[] = ["liver", "tumor"];
+
+// CT counterpart of the X-ray zone chips / stats: tumor volume, extent, HU, slice counts.
+function CtSegmentationBlock({ seg, overlaySlice }: { seg: CtSegmentationSummary; overlaySlice: number | null | undefined }) {
+  const present = seg.labels_present ?? [];
+  const tumor = seg.tumor;
+  const hasTumor = present.includes("tumor");
+
+  return (
+    <div className={styles.segmentation}>
+      <div className={styles.labelRow}>
+        <span className={styles.labelRowTitle}>라벨 존재</span>
+        <div className={styles.chips} aria-label="마스크 라벨">
+          {CT_LABEL_ORDER.map((name) =>
+            present.includes(name) ? (
+              <span key={name} className={styles.chip}>
+                {CT_LABEL_KO[name]}
+              </span>
+            ) : (
+              <span key={name} className={`${styles.chip} ${styles.chipMuted}`}>
+                {CT_LABEL_KO[name]} 라벨 없음
+              </span>
+            ),
+          )}
+        </div>
+      </div>
+      {!seg.detected && <p className={styles.note}>마스크에서 분할 라벨을 찾지 못했습니다.</p>}
+      {seg.detected && !hasTumor && (
+        <p className={styles.note}>마스크에 종양 라벨(2)이 없습니다. 종양이 없다는 뜻은 아닙니다.</p>
+      )}
+      <dl className={styles.stats}>
+        <div>
+          <dt>종양 부피</dt>
+          <dd>{formatUnit(tumor?.volume_ml, "ml")}</dd>
+        </div>
+        <div>
+          <dt>최대 길이</dt>
+          <dd>{formatUnit(tumor?.max_extent_mm, "mm")}</dd>
+        </div>
+        <div>
+          <dt>HU 평균±표준편차</dt>
+          <dd>{formatHu(tumor)}</dd>
+        </div>
+        <div>
+          <dt>라벨 포함 슬라이스</dt>
+          <dd>{tumor?.slices_with_label != null ? `${tumor.slices_with_label}장` : "–"}</dd>
+        </div>
+        <div>
+          <dt>표시 슬라이스</dt>
+          <dd>{overlaySlice != null ? `#${overlaySlice}` : "–"}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 const AUDIENCE_OPTIONS: { key: Audience; label: string; title: string }[] = [
   { key: "doctor", label: "의사용", title: "임상의용 설명 보기" },
   { key: "patient", label: "환자용", title: "환자용 설명 보기" },
@@ -389,7 +560,16 @@ const AUDIENCE_OPTIONS: { key: Audience; label: string; title: string }[] = [
 // Explanation under the card: the clinician text (`content`) and, when the pipeline produced one, a
 // patient-friendly version behind a segmented toggle. Lives in the card so the choice survives streaming
 // updates and the provisional → persisted message swap (same diagnosis key).
-function ExplanationArea({ content, patientSummary }: { content: string; patientSummary?: string | null }) {
+function ExplanationArea({
+  content,
+  patientSummary,
+  patientRestricted = false,
+}: {
+  content: string;
+  patientSummary?: string | null;
+  /** QC marked the result as not usable for the patient: the 환자용 text was generated with restricted content. */
+  patientRestricted?: boolean;
+}) {
   const [audience, setAudience] = useState<Audience>("doctor");
   const patientText = typeof patientSummary === "string" && patientSummary.trim() !== "" ? patientSummary : null;
   if (patientText === null) return content ? <FormattedText text={content} /> : null;
@@ -413,6 +593,11 @@ function ExplanationArea({ content, patientSummary }: { content: string; patient
           </button>
         ))}
       </div>
+      {patientRestricted && (
+        <p className={styles.qcPatientNote}>
+          <TriangleAlert size={13} aria-hidden="true" /> QC 결과 환자용 설명은 제한된 내용으로 생성되었습니다.
+        </p>
+      )}
       {text && <FormattedText text={text} />}
       {showPatient && <p className={styles.patientNote}>환자에게 보여주기 전 담당 의사가 확인하세요.</p>}
     </div>
@@ -420,14 +605,28 @@ function ExplanationArea({ content, patientSummary }: { content: string; patient
 }
 
 export default function AnalysisCard({ analysis, content, originalImageUrl, onFeedbackSaved }: AnalysisCardProps) {
+  const [qcOpen, setQcOpen] = useState(false);
+  const qcListId = useId();
+  const modality = modalityOf(analysis);
   const ml = analysis.ml_results;
   const seg = analysis.segmentation;
+  const qc = analysis.qc ?? null;
+  const qcLines = qc ? qcFlagLines(qc) : [];
   const features = ml?.top_features ?? [];
   const maxImportance = features.reduce((max, f) => Math.max(max, Math.abs(f.importance)), 0);
 
   return (
     <>
       <div className={styles.card}>
+        <div className={styles.topRow}>
+          <span
+            className={`${styles.modalityBadge} ${modality === "ct" ? styles.modalityCt : styles.modalityXray}`}
+            title={modality === "ct" ? "CT 볼륨 + 마스크 분석" : "흉부 X-ray 분석"}
+          >
+            {MODALITY_KO[modality]}
+          </span>
+        </div>
+
         <ImageArea analysis={analysis} originalImageUrl={originalImageUrl} />
 
         {ml && (
@@ -435,6 +634,7 @@ export default function AnalysisCard({ analysis, content, originalImageUrl, onFe
             <span className={`${styles.riskBadge} ${riskClass(ml.risk_level)}`}>
               위험도 {RISK_KO[ml.risk_level] ?? ml.risk_level}
             </span>
+            {qc && <QcBadge qc={qc} open={qcOpen} listId={qcListId} onToggle={() => setQcOpen((o) => !o)} />}
             <span className={styles.primaryLabel}>{labelKo(ml.primary_label)}</span>
             {ml.tb_probability != null && (
               <div
@@ -458,7 +658,19 @@ export default function AnalysisCard({ analysis, content, originalImageUrl, onFe
           </div>
         )}
 
-        {seg && (
+        {qc && qcOpen && qcLines.length > 0 && (
+          <ul id={qcListId} className={styles.qcList} aria-label="QC 플래그">
+            {qcLines.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        )}
+
+        {ml?.qc_warning && <p className={styles.note}>{ml.qc_warning}</p>}
+
+        {seg && isCtSegmentation(seg) && <CtSegmentationBlock seg={seg} overlaySlice={analysis.image?.overlay_slice} />}
+
+        {seg && !isCtSegmentation(seg) && (
           <div className={styles.segmentation}>
             {seg.zones?.length > 0 && (
               <div className={styles.chips} aria-label="병변 구역">
@@ -533,7 +745,11 @@ export default function AnalysisCard({ analysis, content, originalImageUrl, onFe
           </p>
         )}
       </div>
-      <ExplanationArea content={content} patientSummary={analysis.patient_summary} />
+      <ExplanationArea
+        content={content}
+        patientSummary={analysis.patient_summary}
+        patientRestricted={qc?.usable_for_patient === false}
+      />
     </>
   );
 }
